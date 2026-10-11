@@ -1,0 +1,6 @@
+
+/* Tickets */
+.ticket-row{cursor:pointer}
+.ticket-row:hover{background:#F5FBF8!important;transform:translateX(2px)}
+.status-badge{border-radius:999px}
+#reply-text:focus{border-color:#087F5B;box-shadow:0 0 0 4px #DDF5EC}

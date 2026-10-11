@@ -1,0 +1,4 @@
+
+/* Master data */
+.table-wrap{border-radius:14px;overflow:hidden}
+#page-divisi .card,#page-karyawan .card{animation:pageIn .35s ease both}
