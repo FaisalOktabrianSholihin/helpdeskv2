@@ -32,43 +32,40 @@
 </div>
 <h1 class="login-heading">Masuk ke akun Anda</h1>
 <p class="login-sub">Kelola tiket dukungan pelanggan dengan lebih cepat dan rapi.</p>
-<form id="login-form">
+<form id="login-form" autocomplete="off">
 <div class="field">
 <label for="email">Email</label>
 <div class="field-input">
 <svg class="icon" data-lucide="mail"></svg>
-<input id="email" placeholder="Masukkan email" required="" type="email" value="andre@mitratani27.co.id"/>
+<input id="email" name="login_email" placeholder="Masukkan email" required="" type="email" value="" autocomplete="off" autocapitalize="off" spellcheck="false"/>
 </div>
 </div>
 <div class="field">
 <label for="password">Password</label>
 <div class="field-input">
 <svg class="icon" data-lucide="lock"></svg>
-<input id="password" placeholder="Masukkan password" required="" type="password" value="password"/>
+<input id="password" name="login_password" placeholder="Masukkan password" required="" type="password" value="" autocomplete="new-password"/>
 <button id="toggle-pass" type="button"><svg class="icon" data-lucide="eye"></svg></button>
 </div>
 </div>
 <div class="login-row">
 <label class="checkbox-row"><input checked="" type="checkbox"/> Ingat saya</label>
-<a href="#">Lupa password?</a>
+<a href="#" id="forgot-link" aria-expanded="false" aria-controls="forgot-box">Lupa password?</a>
 </div>
 <button class="btn-primary" id="login-btn" type="submit">
 <span id="login-btn-text">Masuk</span>
 <svg class="icon spin" data-lucide="loader-2" id="login-spinner" style="display:none;"></svg>
 </button>
 <div class="login-error" id="login-error" role="alert"></div>
-</form>
-<div class="login-download-row">
-  <a class="login-download-btn" href="{{ asset('downloads/helpdesk-webview-starter.zip') }}" download>
-    <svg class="icon" data-lucide="smartphone"></svg>
-    <span><strong>Download Aplikasi (Android)</strong><small>Project WebView, build di Android Studio</small></span>
-  </a>
-  <a class="login-download-btn secondary" href="{{ asset('downloads/helpdesk-website.zip') }}" download>
-    <svg class="icon" data-lucide="file-archive"></svg>
-    <span><strong>Download Source Website</strong><small>Untuk di-hosting agar dibuka aplikasi</small></span>
-  </a>
+<div class="forgot-box" id="forgot-box" hidden>
+  <svg class="icon" data-lucide="life-buoy"></svg>
+  <div>
+    <strong>Lupa password?</strong>
+    <p>Silakan hubungi <b>TIM IT</b> (Teknologi Informasi) untuk reset password akun Anda. Sebutkan nama dan email akun saat menghubungi.</p>
+  </div>
 </div>
-<div class="login-footer">© 2025 PT. Mitratani Dua Tujuh.<br/>All rights reserved.</div>
+</form>
+<div class="login-footer">© 2025 PT. Mitratani Dua Tujuh.<br/>All rights reserved.<div class="login-version">Helpdesk Ticketing System · Versi 2.0</div></div>
 </div>
 <div class="login-right">
   <div class="helpdesk-scene" aria-label="Ilustrasi alur helpdesk">
@@ -121,56 +118,46 @@
 <div class="brand-name">PT. Mitratani Dua Tujuh</div>
 <div class="brand-sub">Helpdesk</div>
 </div>
-<button class="sb-close-btn" id="sb-close-btn"><svg class="icon" data-lucide="x" style="width:15px;height:15px;"></svg></button>
+<button class="collapse-btn" id="sb-collapse-btn" type="button" title="Kecilkan / besarkan sidebar" aria-label="Kecilkan sidebar"><svg class="icon" data-lucide="chevrons-left" style="width:15px;height:15px;"></svg></button>
+<button class="sb-close-btn" id="sb-close-btn" type="button" aria-label="Tutup menu"><svg class="icon" data-lucide="x" style="width:15px;height:15px;"></svg></button>
 </div>
 <nav class="sb-scroll">
 <div class="sb-label">MENU</div>
-<div class="nav-item active" data-page="dashboard">
+<div class="nav-item active" data-page="dashboard" title="Dashboard">
 <svg class="icon" data-lucide="layout-dashboard"></svg><span class="sb-text">Dashboard</span>
 </div>
-<div class="nav-item" data-page="tiket-list">
+<div class="nav-item" data-page="tiket-list" title="Tiket">
 <svg class="icon" data-lucide="ticket"></svg><span class="sb-text">Tiket</span>
 </div>
-<div class="nav-item" id="kontak-toggle">
+<div class="nav-item" id="kontak-toggle" title="Kontak">
 <svg class="icon" data-lucide="users"></svg><span class="sb-text">Kontak</span>
 <svg class="icon chev" data-lucide="chevron-right"></svg>
 </div>
 <div class="nav-sub" id="kontak-sub">
-<div class="nav-item" data-page="divisi"><svg class="icon" data-lucide="minus"></svg><span class="sb-text">Divisi</span></div>
-<div class="nav-item" data-page="karyawan"><svg class="icon" data-lucide="minus"></svg><span class="sb-text">Karyawan</span></div>
+<div class="nav-item" data-page="divisi" title="Divisi"><svg class="icon" data-lucide="building-2"></svg><span class="sb-text">Divisi</span></div>
+<div class="nav-item" data-page="karyawan" title="Karyawan"><svg class="icon" data-lucide="contact"></svg><span class="sb-text">Karyawan</span></div>
 </div>
-<div class="nav-item" data-page="analitik">
+<div class="nav-item" data-page="analitik" title="Analitik">
 <svg class="icon" data-lucide="bar-chart-3"></svg><span class="sb-text">Analitik</span>
 </div>
-<div class="nav-item" data-page="users">
+<div class="nav-item" data-page="users" title="Akun User">
 <svg class="icon" data-lucide="user-cog"></svg><span class="sb-text">Akun User</span>
 </div>
 <div class="sb-label">LAINNYA</div>
-<div class="nav-item" data-page="setting">
+<div class="nav-item" data-page="setting" title="Setting">
 <svg class="icon" data-lucide="settings"></svg><span class="sb-text">Setting</span>
 </div>
-<div class="nav-item" data-page="roles">
+<div class="nav-item" data-page="roles" title="Roles">
 <svg class="icon" data-lucide="shield"></svg><span class="sb-text">Roles</span>
 </div>
 </nav>
-<div class="sb-foot">
-<div class="avatar">MA</div>
-<div class="sb-foot-text">
-<div class="sb-foot-name">Muhammad Andre</div>
-<div class="sb-foot-role">Admin</div>
-</div>
-<button class="icon-btn" id="logout-btn" title="Logout"><svg class="icon" data-lucide="log-out" style="width:15px;height:15px;"></svg></button>
-</div>
 </aside>
 <!-- MAIN COLUMN -->
 <div id="main-col">
 <header id="topbar">
 
+<button class="icon-btn hamburger-btn" id="hamburger-btn" type="button" aria-label="Buka menu"><svg class="icon" data-lucide="menu"></svg></button>
 <div class="page-title" id="topbar-title">Dashboard</div>
-<div class="search-box">
-<svg class="icon" data-lucide="search" style="width:16px;height:16px;"></svg>
-<input placeholder="Cari tiket, kontak, atau divisi..."/>
-</div>
 <div class="topbar-actions">
 <button class="icon-btn" id="notification-btn" title="Notifikasi"><svg class="icon" data-lucide="bell"></svg><span class="notif-dot"></span></button>
 <button class="icon-btn"><svg class="icon" data-lucide="mail"></svg></button>
@@ -180,8 +167,8 @@
 <div class="topbar-user-name">Muhammad Andre</div>
 <div class="topbar-user-role">Admin</div>
 </div>
-<svg class="icon" data-lucide="chevron-down" style="width:14px;height:14px;color:var(--text-mute);"></svg>
 </div>
+<button class="logout-btn" id="logout-btn" type="button" title="Logout" aria-label="Logout"><svg class="icon" data-lucide="log-out" style="width:16px;height:16px;"></svg><span>Logout</span></button>
 </div>
 </header>
 <div id="notification-panel" class="notification-panel" aria-live="polite"></div>

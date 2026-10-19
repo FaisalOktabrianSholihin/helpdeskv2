@@ -4,3 +4,17 @@
 .ticket-row:hover{background:#F5FBF8!important;transform:translateX(2px)}
 .status-badge{border-radius:999px}
 #reply-text:focus{border-color:#087F5B;box-shadow:0 0 0 4px #DDF5EC}
+
+.comment-body{white-space:pre-line}
+.print-comment-item+.print-comment-item{margin-top:16px}
+.print-comment-body{white-space:normal}
+
+/* Kolom pencarian (autocomplete) di form */
+.combo-list{margin-top:6px;border:1px solid var(--border);border-radius:10px;background:#fff;max-height:190px;overflow-y:auto;box-shadow:0 10px 24px -16px rgba(10,54,38,.45)}
+.combo-item{padding:9px 12px;cursor:pointer;display:flex;flex-direction:column;gap:1px;border-bottom:1px solid var(--border-soft)}
+.combo-item:last-child{border-bottom:0}
+.combo-item:hover{background:var(--primary-50)}
+.combo-item b{font-size:13px;font-weight:700}
+.combo-item small{font-size:11.5px;color:var(--text-mute)}
+.combo-empty{padding:10px 12px;font-size:12.5px;color:var(--text-mute)}
+.combo-list[hidden]{display:none}

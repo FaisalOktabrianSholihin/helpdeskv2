@@ -36,15 +36,6 @@
 
 
 /* Login download */
-.login-download-row{margin-top:18px;display:flex;flex-direction:column;gap:8px}
-.login-download-btn{display:flex;align-items:center;gap:11px;width:100%;padding:12px 14px;border:1px solid #d9ebe4;border-radius:14px;background:#f6fbf8;color:#087f5b;text-decoration:none;transition:.2s ease}
-.login-download-btn:hover{background:#eaf8f2;border-color:#bfe5d6;transform:translateY(-2px);box-shadow:0 12px 28px -20px rgba(8,127,91,.5)}
-.login-download-btn>.icon{width:19px;height:19px}
-.login-download-btn span{display:flex;flex-direction:column;align-items:flex-start;gap:1px}
-.login-download-btn strong{font-size:12px}.login-download-btn small{font-size:10px;color:#70867d}
-.login-download-btn.secondary{background:transparent;border-style:dashed;padding:9px 14px}
-.login-download-btn.secondary>.icon{width:16px;height:16px}
-.login-download-btn.secondary strong{font-size:11px}
 
 /* Keep the helpdesk scene readable: cards have dedicated zones and never overlap each other. */
 .helpdesk-scene{overflow:hidden}
@@ -77,3 +68,13 @@
   .node-one{left:3%;bottom:9%;transform:scale(.68);transform-origin:left bottom}.node-two{display:none}.node-three{right:2%;bottom:8%;transform:scale(.68);transform-origin:right bottom}
   .scene-caption{display:none}.flow-lines{opacity:.65}
 }
+
+/* Lupa password -> hubungi TIM IT */
+.login-row a{cursor:pointer}
+.forgot-box{display:flex;gap:11px;align-items:flex-start;margin-top:16px;padding:13px 14px;border:1px solid #bfe5d6;border-radius:14px;background:#f1fbf7;color:#056a4c;animation:forgotIn .25s ease}
+.forgot-box[hidden]{display:none}
+.forgot-box>.icon{width:20px;height:20px;flex-shrink:0;margin-top:1px}
+.forgot-box strong{display:block;font-size:12.5px;margin-bottom:2px}
+.forgot-box p{margin:0;font-size:12px;line-height:1.5;color:#3c5a4f}
+@keyframes forgotIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.login-version{margin-top:8px;display:inline-block;padding:3px 10px;border-radius:999px;background:#eaf8f2;color:#087f5b;font-weight:700;font-size:11px}

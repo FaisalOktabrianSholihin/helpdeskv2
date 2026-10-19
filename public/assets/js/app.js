@@ -9,6 +9,17 @@ function initLoginFlow() {
   if (!toggle || !form || form.dataset.initialized === '1') return;
   form.dataset.initialized = '1';
 
+  const forgotLink = document.getElementById('forgot-link');
+  const forgotBox = document.getElementById('forgot-box');
+  forgotLink?.addEventListener('click', (e) => {
+    e.preventDefault();
+    if (!forgotBox) return;
+    const show = forgotBox.hidden;
+    forgotBox.hidden = !show;
+    forgotLink.setAttribute('aria-expanded', String(show));
+    if (show && window.lucide) lucide.createIcons();
+  });
+
   toggle.addEventListener('click', () => {
     const pw = document.getElementById('password');
     const icon = document.querySelector('#toggle-pass svg');
@@ -78,7 +89,9 @@ async function bootHelpdesk() {
     document.body.classList.add('login-success');
     document.getElementById('login-screen')?.classList.add('hide');
     document.getElementById('app')?.classList.add('show');
-    showPage('dashboard');
+    // showPage() dipanggil di bawah, SETELAH semua fungsi/variabel dibuat.
+    // (Memanggilnya di sini membuat error "before initialization" sehingga
+    // data tidak termuat dan semua tombol tidak berfungsi.)
   }
 
     /* ============ API HELPER ============
@@ -243,11 +256,15 @@ async function bootHelpdesk() {
     <div class="legend-row"><span class="legend-left"><span class="legend-sw" style="background:${legendColors[k]};"></span>${statusLabel[k]}</span><span class="legend-val">${counts[k]} (${Math.round(counts[k] / total * 100)}%)</span></div>
   `).join('');
 
-      document.getElementById('kpi-menunggu').dataset.target = counts.menunggu;
-      document.getElementById('kpi-selesai').dataset.target = counts.selesai;
-      document.getElementById('kpi-terbuka').dataset.target = counts.baru;
-      document.getElementById('kpi-total').dataset.target = tickets.length;
+      const yr = new Date().getFullYear();
+      const yearTix = tickets.filter(t => new Date(t.created_at || '').getFullYear() === yr);
+      const doneTix = yearTix.filter(t => t.status === 'selesai').length;
+      document.getElementById('kpi-total').dataset.target = yearTix.length;
+      document.getElementById('kpi-selesai').dataset.target = doneTix;
+      document.getElementById('kpi-menunggu').dataset.target = yearTix.length - doneTix;
+      document.getElementById('kpi-terbuka').dataset.target = tickets.filter(t => Number(t.reopened_count) > 0).length;
       lucide.createIcons();
+      if (document.getElementById('page-dashboard')?.classList.contains('active')) renderCharts();
     }
     function renderTicketList() {
       const search = (document.getElementById('ticket-search').value || '').toLowerCase();
@@ -312,11 +329,13 @@ async function bootHelpdesk() {
       document.getElementById('paper-print-date').textContent = printDate;
       document.getElementById('paper-print-url').textContent = `m27.helpdesk.com/helpdesk/tickets/${String(t.id).replace('#','')}/print`;
 
-      const commentMeta = document.getElementById('paper-comment-meta');
-      const commentBody = document.getElementById('paper-comment-body');
-      if (commentMeta && commentBody) {
-        commentMeta.textContent = `oleh ${currentUser?.nama || t.agen} pada ${t.updated} as Email keluar`;
-        commentBody.innerHTML = `Hi ${esc(t.kontak)},<br><br>Setelah dilakukan pemeriksaan oleh bagian teknologi informasi, laporan tiket <strong>${esc(t.id)}</strong> mengenai <strong>${esc(t.judul.toLowerCase())}</strong> telah ditindaklanjuti. Demikian laporan yang dapat kami sampaikan, atas perhatiannya kami ucapkan terima kasih.`;
+      const commentWrap = document.querySelector('#print-paper .print-comment');
+      if (commentWrap) {
+        const rs = t.replies || [];
+        const fmt = (txt) => esc(txt).replace(/\n/g, '<br>');
+        commentWrap.innerHTML = `<div class="print-section-title print-comment-title">Komentar</div>` + (rs.length
+          ? rs.map(r => `<div class="print-comment-item"><div class="print-entry-meta">oleh ${esc(r.nama)} pada ${esc(r.waktu)}${r.channel && r.channel !== 'Balasan baru' ? ' as ' + esc(r.channel) : ''}</div><div class="print-comment-body">${fmt(r.body)}</div></div>`).join('')
+          : `<div class="print-comment-body">Belum ada komentar.</div>`);
       }
 
       const commentsWrap = document.getElementById('detail-comments');
@@ -486,8 +505,10 @@ async function bootHelpdesk() {
       login?.classList.remove('hide','success');
       document.body.classList.remove('login-success');
       const form = document.getElementById('login-form'); form?.reset();
-      document.getElementById('email').value = 'superadmin@mitratani27.co.id';
-      document.getElementById('password').value = 'password';
+      document.getElementById('email').value = '';
+      document.getElementById('password').value = '';
+      document.getElementById('password').type = 'password';
+      const forgotBox = document.getElementById('forgot-box'); if (forgotBox) forgotBox.hidden = true;
       document.getElementById('login-btn').disabled = false;
       document.getElementById('login-btn-text').textContent = 'Masuk';
       document.getElementById('login-spinner').style.display = 'none';
@@ -577,8 +598,31 @@ async function bootHelpdesk() {
     function closeMobileSidebar() { sidebarEl.classList.remove('mobile-open'); overlayEl.classList.remove('show'); }
     document.getElementById('sb-close-btn').addEventListener('click', closeMobileSidebar);
     overlayEl.addEventListener('click', closeMobileSidebar);
+    document.getElementById('hamburger-btn')?.addEventListener('click', openMobileSidebar);
+
+    /* Sidebar bisa dikecilkan (mode ikon) — pilihan diingat di browser */
+    const SB_KEY = 'helpdesk.sidebar.collapsed';
+    function setSidebarCollapsed(on) {
+      sidebarEl.classList.toggle('collapsed', on);
+      const btn = document.getElementById('sb-collapse-btn');
+      if (btn) { btn.setAttribute('aria-label', on ? 'Besarkan sidebar' : 'Kecilkan sidebar'); btn.setAttribute('aria-expanded', String(!on)); }
+      try { localStorage.setItem(SB_KEY, on ? '1' : '0'); } catch (e) {}
+    }
+    try { setSidebarCollapsed(localStorage.getItem(SB_KEY) === '1'); } catch (e) {}
+    document.getElementById('sb-collapse-btn')?.addEventListener('click', () => setSidebarCollapsed(!sidebarEl.classList.contains('collapsed')));
     document.getElementById('notification-btn')?.addEventListener('click', (e)=>{e.stopPropagation();showNotificationPanel();});
-    document.getElementById('logout-btn')?.addEventListener('click', logout);
+    function confirmLogout() {
+      openModal('Konfirmasi Logout', `
+    <div class="confirm-icon"><svg class="icon" style="width:24px;height:24px;" data-lucide="log-out"></svg></div>
+    <p class="confirm-text">Yakin ingin keluar dari akun <b>${esc(currentUser?.nama || 'Anda')}</b>?</p>
+  `, `
+    <button class="btn btn-ghost" id="modal-cancel">Batal</button>
+    <button class="btn btn-danger" id="modal-confirm-logout">Ya, Logout</button>
+  `, true);
+      document.getElementById('modal-cancel').addEventListener('click', closeModal);
+      document.getElementById('modal-confirm-logout').addEventListener('click', () => { closeModal(); logout(); });
+    }
+    document.getElementById('logout-btn')?.addEventListener('click', confirmLogout);
     document.getElementById('topbar-user')?.addEventListener('click', ()=>openCurrentUserProfile());
     document.addEventListener('click', e=>{ if(!e.target.closest('#notification-btn,#notification-panel')) document.getElementById('notification-panel')?.classList.remove('show'); });
     renderNotificationDot();
@@ -649,6 +693,32 @@ async function bootHelpdesk() {
       lucide.createIcons();
     }
     function closeModal() { modalOverlay.classList.remove('show'); }
+
+    /* Kolom pencarian (autocomplete) sederhana: ketik -> muncul daftar -> klik untuk memilih. */
+    function attachCombo(input, getItems, onPick, onClear) {
+      const list = document.createElement('div');
+      list.className = 'combo-list'; list.hidden = true;
+      input.insertAdjacentElement('afterend', list);
+      let picked = input.value;
+      const render = () => {
+        const q = input.value.trim().toLowerCase();
+        const items = getItems(q).slice(0, 30);
+        list.innerHTML = items.length ? items.map((it, i) => `<div class="combo-item" data-i="${i}"><b>${esc(it.label)}</b>${it.sub ? `<small>${esc(it.sub)}</small>` : ''}</div>`).join('')
+          : `<div class="combo-empty">Tidak ada hasil</div>`;
+        list._items = items; list.hidden = false;
+      };
+      input.addEventListener('input', () => { if (input.value !== picked) { picked = null; onClear && onClear(); } render(); });
+      input.addEventListener('focus', render);
+      input.addEventListener('blur', () => setTimeout(() => { list.hidden = true; }, 150));
+      list.addEventListener('mousedown', (e) => {
+        const el = e.target.closest('.combo-item'); if (!el) return;
+        e.preventDefault();
+        const it = list._items[Number(el.dataset.i)];
+        input.value = it.label; picked = it.label; list.hidden = true;
+        onPick(it);
+      });
+    }
+    const isSuperadmin = () => /super\s*admin/i.test(currentUser?.roleNama || '');
     document.getElementById('modal-close-btn').addEventListener('click', closeModal);
     modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
@@ -661,7 +731,7 @@ async function bootHelpdesk() {
     <div class="form-field"><label>Judul Tiket</label><input class="form-input" id="f-judul" value="${t ? esc(t.judul) : ''}" placeholder="Contoh: Printer tidak bisa print"></div>
     <div class="form-field"><label>Deskripsi</label><textarea class="form-textarea" id="f-desc" placeholder="Jelaskan detail kendala...">${t ? esc(t.deskripsi) : ''}</textarea></div>
     <div class="form-row-2">
-      <div class="form-field"><label>Nama Kontak</label><input class="form-input" id="f-kontak" value="${t ? esc(t.kontak) : ''}" placeholder="Nama pelapor"></div>
+      <div class="form-field"><label>Nama Kontak</label><input class="form-input" id="f-kontak" autocomplete="off" value="${t ? esc(t.kontak) : ''}" placeholder="${isSuperadmin() ? 'Ketik untuk mencari karyawan...' : 'Nama pelapor'}"><input type="hidden" id="f-karyawan-id" value="${t && t.karyawan_id ? t.karyawan_id : ''}"><input type="hidden" id="f-divisi-id" value="${t && t.divisi_id ? t.divisi_id : ''}"></div>
       <div class="form-field"><label>No. Telepon</label><input class="form-input" id="f-telepon" value="${t ? esc(t.telepon) : ''}" placeholder="08xx-xxxx-xxxx"></div>
     </div>
     <div class="form-row-2">
@@ -680,10 +750,7 @@ async function bootHelpdesk() {
         ${['Telepon', 'Email', 'Chat', 'Web'].map(v => `<option value="${v}" ${t && t.sumber === v ? 'selected' : ''}>${v}</option>`).join('')}
       </select><svg class="icon" data-lucide="chevron-down"></svg></div></div>
     </div>
-    <div class="form-field"><label>Agen Penanggung Jawab</label><div class="select-wrap-form"><select class="form-select" id="f-agen">
-      <option value="">Belum ditugaskan</option>
-      ${usersList.map(u => `<option value="${u.id}" ${t && t.agen === u.nama ? 'selected' : ''}>${esc(u.nama)}</option>`).join('')}
-    </select><svg class="icon" data-lucide="chevron-down"></svg></div></div>
+    <div class="form-field"><label>Agen Penanggung Jawab</label><input class="form-input" id="f-agen-search" autocomplete="off" placeholder="Ketik untuk mencari agen..." value="${t && t.agen && t.agen !== 'Belum ditugaskan' ? esc(t.agen) : ''}"><input type="hidden" id="f-agen" value="${t ? (usersList.find(u => u.nama === t.agen)?.id || '') : ''}"><small style="color:var(--text-mute);">Kosongkan jika belum ditugaskan.</small></div>
   `;
       const foot = `
     <button class="btn btn-ghost" id="modal-cancel">Batal</button>
@@ -691,8 +758,37 @@ async function bootHelpdesk() {
   `;
       openModal(editing ? `Edit Tiket ${t.id}` : 'Buat Tiket Baru', body, foot);
       document.getElementById('modal-cancel').addEventListener('click', closeModal);
+      if (isSuperadmin()) {
+        attachCombo(document.getElementById('f-kontak'),
+          q => karyawanList.filter(k => !q || k.nama.toLowerCase().includes(q) || (k.email || '').toLowerCase().includes(q))
+            .map(k => ({ label: k.nama, sub: [k.divisiNama || divisiName(k.divisiId), k.tlp].filter(x => x && x !== '—').join(' · '), k })),
+          it => {
+            document.getElementById('f-karyawan-id').value = it.k.id;
+            document.getElementById('f-divisi-id').value = it.k.divisiId || '';
+            document.getElementById('f-telepon').value = it.k.tlp || '';
+          },
+          () => { document.getElementById('f-karyawan-id').value = ''; document.getElementById('f-divisi-id').value = ''; });
+      }
+      attachCombo(document.getElementById('f-agen-search'),
+        q => usersList.filter(u => u.active !== false && (!q || u.nama.toLowerCase().includes(q))).map(u => ({ label: u.nama, sub: rolesList.find(r => r.id === u.roleId)?.nama || '', u })),
+        it => { document.getElementById('f-agen').value = it.u.id; },
+        () => { document.getElementById('f-agen').value = ''; });
       document.getElementById('modal-save').addEventListener('click', async () => {
         const judul = document.getElementById('f-judul').value.trim();
+        const agenText = document.getElementById('f-agen-search').value.trim();
+        if (agenText && !document.getElementById('f-agen').value) {
+          const m = usersList.find(u => u.nama.toLowerCase() === agenText.toLowerCase());
+          if (m) document.getElementById('f-agen').value = m.id;
+          else { showToast('Pilih agen dari daftar yang muncul', 'triangle-alert'); return; }
+        }
+        if (isSuperadmin()) {
+          const kt = document.getElementById('f-kontak').value.trim();
+          if (kt && !document.getElementById('f-karyawan-id').value) {
+            const m = karyawanList.find(k => k.nama.toLowerCase() === kt.toLowerCase());
+            if (m) { document.getElementById('f-karyawan-id').value = m.id; document.getElementById('f-divisi-id').value = m.divisiId || ''; }
+            else { showToast('Pilih nama kontak dari daftar karyawan', 'triangle-alert'); return; }
+          }
+        }
         if (!judul) { showToast('Judul tiket wajib diisi', 'triangle-alert'); return; }
         const data = {
           judul,
@@ -704,6 +800,8 @@ async function bootHelpdesk() {
           tipe: document.getElementById('f-tipe').value,
           sumber: document.getElementById('f-sumber').value,
           agen_id: document.getElementById('f-agen').value ? Number(document.getElementById('f-agen').value) : null,
+          karyawan_id: document.getElementById('f-karyawan-id').value ? Number(document.getElementById('f-karyawan-id').value) : null,
+          divisi_id: document.getElementById('f-divisi-id').value ? Number(document.getElementById('f-divisi-id').value) : null,
         };
         try {
           if (editing) {
@@ -828,10 +926,19 @@ async function bootHelpdesk() {
       const editing=id!=null, u=editing?usersList.find(x=>x.id===id):null;
       const roleOpts=rolesList.map(r=>`<option value="${r.id}" ${u?.roleId===r.id?'selected':''}>${esc(r.nama)}</option>`).join('');
       const divOpts='<option value="">Semua / Tidak ditentukan</option>'+divisiList.map(d=>`<option value="${d.id}" ${u?.divisiId===d.id?'selected':''}>${esc(d.nama)}</option>`).join('');
-      const body=`<div class="form-grid-2"><div class="form-field"><label>Nama Lengkap</label><input class="form-input" id="u-nama" value="${u?esc(u.nama):''}"></div><div class="form-field"><label>Email Login</label><input class="form-input" type="email" id="u-email" value="${u?esc(u.email):''}"></div><div class="form-field"><label>Password</label><input class="form-input" type="password" id="u-pass" placeholder="${editing?'Kosongkan jika tidak diubah':'Minimal 6 karakter'}" value=""></div><div class="form-field"><label>Role</label><select class="form-input" id="u-role">${roleOpts}</select></div><div class="form-field"><label>Divisi</label><select class="form-input" id="u-divisi">${divOpts}</select></div><div class="form-field"><label>Status</label><select class="form-input" id="u-active"><option value="1" ${u?.active!==false?'selected':''}>Aktif</option><option value="0" ${u?.active===false?'selected':''}>Nonaktif</option></select></div></div>`;
+      const body=`<div class="form-grid-2"><div class="form-field"><label>Nama Lengkap</label><input class="form-input" id="u-nama" autocomplete="off" placeholder="Ketik untuk mencari karyawan..." value="${u?esc(u.nama):''}"></div><div class="form-field"><label>Email Login</label><input class="form-input" type="email" id="u-email" value="${u?esc(u.email):''}"></div><div class="form-field"><label>Password</label><input class="form-input" type="password" id="u-pass" placeholder="${editing?'Kosongkan jika tidak diubah':'Minimal 6 karakter'}" value=""></div><div class="form-field"><label>Role</label><select class="form-input" id="u-role">${roleOpts}</select></div><div class="form-field"><label>Divisi</label><select class="form-input" id="u-divisi">${divOpts}</select></div><div class="form-field"><label>Status</label><select class="form-input" id="u-active"><option value="1" ${u?.active!==false?'selected':''}>Aktif</option><option value="0" ${u?.active===false?'selected':''}>Nonaktif</option></select></div></div>`;
       openModal(editing?'Edit Akun User':'Tambah Akun User',body,`<button class="btn btn-ghost" id="modal-cancel">Batal</button><button class="btn btn-blue" id="modal-save">Simpan Akun</button>`);
       document.getElementById('modal-cancel').addEventListener('click',closeModal);
+      attachCombo(document.getElementById('u-nama'),
+        q => karyawanList.filter(k => !q || k.nama.toLowerCase().includes(q) || (k.email||'').toLowerCase().includes(q))
+          .map(k => ({ label: k.nama, sub: [k.divisiNama || divisiName(k.divisiId), k.email].filter(x => x && x !== '—').join(' · '), k })),
+        it => {
+          document.getElementById('u-email').value = it.k.email || '';
+          const dv = document.getElementById('u-divisi');
+          dv.value = it.k.divisiId && [...dv.options].some(o => o.value === String(it.k.divisiId)) ? String(it.k.divisiId) : '';
+        });
       document.getElementById('modal-save').addEventListener('click', async ()=>{
+        if(!editing){ const n=document.getElementById('u-nama').value.trim().toLowerCase(); const k=karyawanList.find(x=>x.nama.toLowerCase()===n); if(!k){showToast('Pilih nama dari daftar karyawan','triangle-alert');return;} if(!document.getElementById('u-email').value.trim()) document.getElementById('u-email').value=k.email||''; }
         const nama=document.getElementById('u-nama').value.trim(),email=document.getElementById('u-email').value.trim().toLowerCase(),pass=document.getElementById('u-pass').value,roleId=Number(document.getElementById('u-role').value),divisiId=Number(document.getElementById('u-divisi').value)||null,active=document.getElementById('u-active').value==='1';
         if(!nama||!email||(!editing&&!pass)){showToast('Nama, email dan password wajib diisi','triangle-alert');return;}
         const payload={ nama, email, roleId, divisiId, active };
@@ -933,12 +1040,20 @@ async function bootHelpdesk() {
       const monthly = getTicketMonthData(year);
       const cm = document.getElementById('chartMonthly');
       if (chartMonthly) chartMonthly.destroy();
-      const grad = cm.getContext('2d').createLinearGradient(0, 0, 0, 220);
-      grad.addColorStop(0, 'rgba(46,72,229,.28)'); grad.addColorStop(1, 'rgba(46,72,229,0)');
+      const bulan = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+      let last = year === new Date().getFullYear() ? new Date().getMonth() : 0;
+      for (let i = 11; i >= 0; i--) { if (monthly.created[i] || monthly.selesai[i]) { last = Math.max(last, i); break; } }
+      const n = last + 1;
+      const bar = (label, data, color) => ({ label, data: data.slice(0, n), backgroundColor: color, borderRadius: 3, barPercentage: .8, categoryPercentage: .78 });
       chartMonthly = new Chart(cm, {
-        type: 'line',
-        data: { labels: monthly.labels, datasets: [{ label: 'Tiket dibuat', data: monthly.created, borderColor: '#087F5B', backgroundColor: grad, fill: true, tension: .35, borderWidth: 2.5, pointRadius: 2.5, pointHoverRadius: 5, pointHoverBackgroundColor: '#087F5B', pointHoverBorderColor: '#fff', pointHoverBorderWidth: 2 }] },
-        options: { responsive: true, maintainAspectRatio: false, animation: { duration: 700, easing: 'easeOutQuart' }, plugins: { legend: { display: false }, tooltip: { backgroundColor: '#10221B', padding: 10, cornerRadius: 8, titleFont: { weight: 700 }, bodyFont: { weight: 600 } } }, scales: { x: { grid: { display: false }, border: { display: false }, ticks: { font: { size: 11, weight: 600 } } }, y: { beginAtZero: true, grid: { color: '#EAF3EF' }, border: { display: false }, ticks: { precision: 0, stepSize: 1, font: { size: 11, weight: 600 } } } } }
+        type: 'bar',
+        data: { labels: bulan.slice(0, n).map(m => `${m} ${year}`), datasets: [
+          bar('Total tiket tidak selesai', monthly.open, '#2188E5'),
+          bar('Total tiket dibuat', monthly.created, '#9BC2E6'),
+          bar('Total tiket selesai', monthly.selesai, '#EE8500') ] },
+        options: { responsive: true, maintainAspectRatio: false, animation: { duration: 700, easing: 'easeOutQuart' },
+          plugins: { legend: { display: true, position: cm.parentElement.clientWidth > 760 ? 'right' : 'bottom', labels: { usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 9, boxHeight: 9, padding: 12, font: { size: 10.5, weight: 600 } } }, tooltip: { backgroundColor: '#10221B', padding: 10, cornerRadius: 8 } },
+          scales: { x: { grid: { display: false }, ticks: { font: { size: 10.5, weight: 600 }, maxRotation: 0, autoSkip: false } }, y: { beginAtZero: true, grid: { color: '#E5E5E5' }, border: { display: false }, ticks: { precision: 0, font: { size: 11, weight: 600 } } } } }
       });
 
       const cs = document.getElementById('chartStatus');
@@ -963,39 +1078,28 @@ async function bootHelpdesk() {
       // akan tetap dihitung pada Februari, Maret, dst. sampai benar-benar
       // selesai. Tiket dari tahun sebelumnya yang masih terbuka juga ikut
       // menjadi backlog pada Januari tahun berjalan.
-      const monthEnd = (monthIndex) => new Date(year, monthIndex + 1, 0, 23, 59, 59, 999);
+      // "Tidak selesai" bulan M = tiket yang masih terbuka di AWAL bulan M
+      // (sisa bulan-bulan sebelumnya, termasuk tiket baru bulan sebelumnya).
+      // Contoh: Jan 2 sisa + 2 baru -> Feb 4; Feb +2 baru, 5 selesai -> Mar 1.
+      const monthStart = (monthIndex) => new Date(year, monthIndex, 1, 0, 0, 0, 0);
 
       tickets.forEach(t => {
         const createdDate = new Date(t.created_at || '');
         if (Number.isNaN(createdDate.getTime())) return;
 
-        // "Total tiket dibuat" tetap hanya tiket yang dibuat pada bulan itu.
-        if (createdDate.getFullYear() === year) {
-          created[createdDate.getMonth()]++;
-        }
+        if (createdDate.getFullYear() === year) created[createdDate.getMonth()]++;
 
-        // Untuk tiket yang selesai, gunakan closed_at bila tersedia. Fallback
-        // ke updated_at agar data lama tetap dapat dihitung tanpa migrasi.
-        const completionRaw = t.closed_at || (t.status === 'selesai' ? t.updated_at : null);
+        const completionRaw = t.closed_at || (t.status === 'selesai' ? (t.created_at) : null);
         const completionDate = completionRaw ? new Date(completionRaw) : null;
         const hasCompletion = completionDate && !Number.isNaN(completionDate.getTime());
 
         for (let month = 0; month < 12; month++) {
-          const end = monthEnd(month);
-
-          // Belum dibuat sampai akhir bulan ini -> belum menjadi backlog.
-          if (createdDate > end) continue;
-
-          // Masih terbuka pada akhir bulan -> masuk backlog bulan ini.
-          if (!hasCompletion || completionDate > end) {
-            open[month]++;
-          }
+          const start = monthStart(month);
+          if (createdDate >= start) continue;                       // belum ada di awal bulan ini
+          if (!hasCompletion || completionDate >= start) open[month]++; // masih terbuka di awal bulan
         }
 
-        // Jumlah selesai tetap dihitung berdasarkan bulan tiket ditutup.
-        if (hasCompletion && completionDate.getFullYear() === year) {
-          selesai[completionDate.getMonth()]++;
-        }
+        if (hasCompletion && completionDate.getFullYear() === year) selesai[completionDate.getMonth()]++;
       });
 
       return { labels, created, selesai, open };
@@ -1005,24 +1109,52 @@ async function bootHelpdesk() {
       if (!window.Chart) return;
       const year = new Date().getFullYear();
       const monthly = getTicketMonthData(year);
+      /* Volume tiket per bulan: jumlah tiket yang masuk (dibuat) pada tiap bulan. */
+      const sel = document.getElementById('volume-year');
+      const years = [...new Set(tickets.map(t => new Date(t.created_at || '').getFullYear()).filter(y => !Number.isNaN(y)))].sort((x, y) => y - x);
+      if (!years.includes(year)) years.unshift(year);
+      if (sel) {
+        const keep = sel.value && years.map(String).includes(sel.value) ? sel.value : String(year);
+        sel.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+        sel.value = keep;
+        if (!sel.dataset.bound) { sel.dataset.bound = '1'; sel.addEventListener('change', renderAnalyticsCharts); }
+      }
+      const volYear = sel ? Number(sel.value) : year;
+      const volume = getTicketMonthData(volYear);
+      const volTotal = volume.created.reduce((a, b) => a + b, 0);
+      const volSub = document.getElementById('volume-sub');
+      if (volSub) volSub.textContent = `Jumlah tiket masuk setiap bulan · ${volTotal} tiket di ${volYear}`;
+
       const cp = document.getElementById('chartPeriode');
       if (chartPeriode) chartPeriode.destroy();
+      const valueLabels = {
+        id: 'valueLabels',
+        afterDatasetsDraw(chart) {
+          const { ctx } = chart;
+          ctx.save();
+          ctx.font = "700 11px 'Plus Jakarta Sans', sans-serif";
+          ctx.fillStyle = '#10221B'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+          chart.getDatasetMeta(0).data.forEach((bar, i) => {
+            const v = chart.data.datasets[0].data[i];
+            if (v) ctx.fillText(v, bar.x, bar.y - 4);
+          });
+          ctx.restore();
+        }
+      };
       chartPeriode = new Chart(cp, {
         type: 'bar',
         data: {
-          labels: monthly.labels,
-          datasets: [
-            { label: 'Total tiket tidak selesai', data: monthly.open, backgroundColor: '#2188E5', borderRadius: 4, barPercentage: .62, categoryPercentage: .72 },
-            { label: 'Total tiket dibuat', data: monthly.created, backgroundColor: '#9BC2E6', borderRadius: 4, barPercentage: .62, categoryPercentage: .72 },
-            { label: 'Total tiket selesai', data: monthly.selesai, backgroundColor: '#EE8500', borderRadius: 4, barPercentage: .62, categoryPercentage: .72 },
-          ]
+          labels: volume.labels,
+          datasets: [{ label: 'Volume tiket', data: volume.created, backgroundColor: '#087F5B', hoverBackgroundColor: '#12A36F', borderRadius: 6, maxBarThickness: 34 }]
         },
+        plugins: [valueLabels],
         options: {
           responsive: true, maintainAspectRatio: false,
+          layout: { padding: { top: 18 } },
           animation: { duration: 700, easing: 'easeOutQuart' },
-          plugins: { legend: { display: true, position: 'right', labels: { usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 9, boxHeight: 9, padding: 14, font: { size: 10, weight: 600 } } }, tooltip: { backgroundColor: '#10221B', padding: 10, cornerRadius: 8 } },
+          plugins: { legend: { display: false }, tooltip: { backgroundColor: '#10221B', padding: 10, cornerRadius: 8, callbacks: { label: ctx => ` ${ctx.parsed.y} tiket` } } },
           scales: {
-            x: { stacked: false, grid: { display: false }, border: { display: false }, ticks: { font: { size: 10, weight: 600 } } },
+            x: { grid: { display: false }, border: { display: false }, ticks: { font: { size: 11, weight: 600 } } },
             y: { beginAtZero: true, grid: { color: '#E5E5E5' }, border: { display: false }, ticks: { precision: 0, stepSize: 1, font: { size: 11, weight: 600 } } }
           }
         }
@@ -1053,42 +1185,20 @@ async function bootHelpdesk() {
 
 
 
-  /* Global search: cari tiket/karyawan dari topbar */
-  const globalSearch = document.querySelector('.search-box input');
-  globalSearch?.addEventListener('keydown', e => {
-    if (e.key !== 'Enter') return;
-    const q = e.target.value.trim().toLowerCase();
-    if (!q) return;
-    const ticket = tickets.find(t => [t.id,t.judul,t.kontak,t.tipe].some(v => String(v).toLowerCase().includes(q)));
-    if (ticket) {
-      showPage('tiket-detail');
-      renderTicketDetail(ticket.id);
-      showToast(`Tiket ${ticket.id} ditemukan`, 'search');
-      return;
-    }
-    const k = karyawanList.find(x => [x.nama,x.email,x.tlp].some(v => String(v).toLowerCase().includes(q)));
-    if (k) {
-      showPage('karyawan');
-      document.getElementById('karyawan-search').value = e.target.value;
-      renderKaryawan();
-      showToast(`Karyawan ${k.nama} ditemukan`, 'search');
-      return;
-    }
-    showToast('Data tidak ditemukan', 'triangle-alert');
-  });
-
-  /* Shortcut keyboard untuk terasa seperti aplikasi desktop */
-  document.addEventListener('keydown', e => {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-      e.preventDefault(); globalSearch?.focus(); globalSearch?.select();
-    }
-  });
-
   /* Refresh icon rendering after dynamic pages are inserted */
   lucide.createIcons();
 
   if (window.__HELPDESK_BOOT?.authenticated) {
-    await loadBootstrapData();
+    try {
+      await loadBootstrapData();
+      showPage('dashboard');
+    } catch (err) {
+      // Sesi sudah habis / data gagal dimuat -> kembali ke halaman login.
+      console.error('Gagal memuat data:', err);
+      document.getElementById('app')?.classList.remove('show');
+      document.getElementById('login-screen')?.classList.remove('hide', 'success');
+      document.body.classList.remove('login-success');
+    }
   }
 }
 

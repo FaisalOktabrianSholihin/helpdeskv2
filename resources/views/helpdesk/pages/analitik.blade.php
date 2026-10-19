@@ -51,18 +51,11 @@
         <div class="card">
             <div class="card-head">
                 <div>
-                    <h3>Tiket Periode</h3>
-                    <div class="sub">Perbandingan status per periode</div>
+                    <h3>Volume Tiket per Bulan</h3>
+                    <div class="sub" id="volume-sub">Jumlah tiket masuk setiap bulan</div>
                 </div>
-                <div
-                    style="display:flex; gap:14px; font-size:11.5px; font-weight:700; color:var(--text-mute); flex-wrap:wrap;">
-                    <span style="display:flex; align-items:center; gap:5px;"><span class="legend-sw"
-                            style="background:#2188E5;"></span>Total tiket tidak selesai</span>
-                    <span style="display:flex; align-items:center; gap:5px;"><span class="legend-sw"
-                            style="background:#9BC2E6;"></span>Total tiket dibuat</span>
-                    <span style="display:flex; align-items:center; gap:5px;"><span class="legend-sw"
-                            style="background:#EE8500;"></span>Total tiket selesai</span>
-                </div>
+                <div class="select-wrap"><select class="filter-select" id="volume-year" aria-label="Pilih tahun"></select><svg
+                        data-lucide="chevron-down"></svg></div>
             </div>
             <div class="card-body chart-box" style="height:250px;"><canvas id="chartPeriode"></canvas></div>
         </div>

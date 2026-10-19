@@ -1,4 +1,11 @@
 
 /* Master data */
-.table-wrap{border-radius:14px;overflow:hidden}
+/* overflow-x harus auto, kalau "hidden" tabel lebar tidak bisa digeser di HP */
+.table-wrap{border-radius:14px;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+.table-wrap>table{min-width:640px}
+#page-karyawan .table-wrap>table{min-width:780px}
+#page-tiket-list .table-wrap>table{min-width:860px}
+#page-divisi .table-wrap>table{min-width:0}
+.table-wrap::-webkit-scrollbar{height:8px}
+.table-wrap::-webkit-scrollbar-thumb{background:#c9ddd5;border-radius:8px}
 #page-divisi .card,#page-karyawan .card{animation:pageIn .35s ease both}

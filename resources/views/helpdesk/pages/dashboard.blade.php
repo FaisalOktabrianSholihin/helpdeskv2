@@ -14,60 +14,33 @@
               <div style="font-size:16px; font-weight:800;">Rp 0</div>
             </div> -->
     </div>
-    <div class="grid kpi-grid">
-        <div class="card kpi-card">
-            <div class="kpi-top">
-                <div class="kpi-icon" style="background:var(--primary-100); color:var(--primary);"><svg class="icon"
-                        data-lucide="ticket"></svg></div>
-                <div class="kpi-trend" style="background:var(--teal-100); color:var(--teal);"><svg class="icon"
-                        data-lucide="arrow-up-right" style="width:12px;height:12px;"></svg>12%</div>
-            </div>
-            <div class="kpi-value"><span class="count-up" data-target="128" id="kpi-total">0</span></div>
-            <div class="kpi-label">Total Tiket · dari bulan lalu</div>
+    <div class="grid kpi-grid dash-kpi">
+        <div class="card kpi-card dash-kpi-card">
+            <div class="dash-kpi-label">Tiket dibuat</div>
+            <div class="dash-kpi-value"><span class="count-up" data-target="0" id="kpi-total">0</span></div>
         </div>
-        <div class="card kpi-card">
-            <div class="kpi-top">
-                <div class="kpi-icon" style="background:var(--teal-100); color:var(--teal);"><svg class="icon"
-                        data-lucide="circle-check-big"></svg></div>
-                <div class="kpi-trend" style="background:var(--teal-100); color:var(--teal);"><svg class="icon"
-                        data-lucide="arrow-up-right" style="width:12px;height:12px;"></svg>8%</div>
-            </div>
-            <div class="kpi-value"><span class="count-up" data-target="24" id="kpi-selesai">0</span></div>
-            <div class="kpi-label">Tiket Selesai · dari bulan lalu</div>
+        <div class="card kpi-card dash-kpi-card">
+            <div class="dash-kpi-label">Tiket diselesaikan</div>
+            <div class="dash-kpi-value"><span class="count-up" data-target="0" id="kpi-selesai">0</span></div>
         </div>
-        <div class="card kpi-card">
-            <div class="kpi-top">
-                <div class="kpi-icon" style="background:var(--amber-100); color:var(--amber);"><svg class="icon"
-                        data-lucide="clock"></svg></div>
-                <div class="kpi-trend" style="background:var(--rose-100); color:var(--rose);"><svg class="icon"
-                        data-lucide="arrow-down-right" style="width:12px;height:12px;"></svg>6%</div>
-            </div>
-            <div class="kpi-value"><span class="count-up" data-target="8" id="kpi-menunggu">0</span></div>
-            <div class="kpi-label">Tiket Menunggu · dari bulan lalu</div>
+        <div class="card kpi-card dash-kpi-card">
+            <div class="dash-kpi-label">Tiket tidak selesai</div>
+            <div class="dash-kpi-value"><span class="count-up" data-target="0" id="kpi-menunggu">0</span></div>
         </div>
-        <div class="card kpi-card">
-            <div class="kpi-top">
-                <div class="kpi-icon" style="background:var(--rose-100); color:var(--rose);"><svg class="icon"
-                        data-lucide="circle-alert"></svg></div>
-                <span class="badge b-rendah" style="font-size:10.5px;">Butuh aksi</span>
-            </div>
-            <div class="kpi-value"><span class="count-up" data-target="4" id="kpi-terbuka">0</span></div>
-            <div class="kpi-label">Tiket Terbuka</div>
+        <div class="card kpi-card dash-kpi-card">
+            <div class="dash-kpi-label">Tiket dibuka kembali</div>
+            <div class="dash-kpi-value"><span class="count-up" data-target="0" id="kpi-terbuka">0</span></div>
         </div>
     </div>
     <div class="grid grid-dash-a">
         <div class="card">
             <div class="card-head">
                 <div>
-                    <h3>Tiket Per Bulan</h3>
-                    <div class="sub">Volume tiket masuk sepanjang tahun</div>
+                    <h3>Tickets management overview</h3>
+                    <div class="sub">Kelompokkan Menurut : Per Bulan</div>
                 </div>
-                <div class="select-wrap"><select class="filter-select">
-                        <option>Tahun ini</option>
-                        <option>Tahun lalu</option>
-                    </select><svg data-lucide="chevron-down"></svg></div>
             </div>
-            <div class="card-body chart-box" style="height:230px;"><canvas id="chartMonthly"></canvas></div>
+            <div class="card-body chart-box" style="height:260px;"><canvas id="chartMonthly"></canvas></div>
         </div>
         <div class="card">
             <div class="card-head">

@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'judul', 'deskripsi', 'kontak_nama', 'karyawan_id', 'divisi_id', 'telepon',
-    'status', 'prioritas', 'tipe', 'sumber', 'agen_id', 'created_by', 'closed_at',
+    'status', 'prioritas', 'tipe', 'sumber', 'agen_id', 'created_by', 'closed_at', 'reopened_count',
 ])]
 class Ticket extends Model
 {
@@ -67,10 +67,13 @@ class Ticket extends Model
             'tipe' => $this->tipe,
             'sumber' => $this->sumber,
             'telepon' => $this->telepon,
+            'karyawan_id' => $this->karyawan_id,
+            'divisi_id' => $this->divisi_id,
             'dibuat' => \App\Support\IndoDate::format($this->created_at),
             'updated' => \App\Support\IndoDate::format($this->updated_at),
             'created_at' => optional($this->created_at)->toIso8601String(),
             'closed_at' => optional($this->closed_at)->toIso8601String(),
+            'reopened_count' => (int) ($this->reopened_count ?? 0),
             'replies' => $this->replies->map(fn ($r) => [
                 'id' => $r->id,
                 'nama' => $r->user?->name ?? 'Sistem',

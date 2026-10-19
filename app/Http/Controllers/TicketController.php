@@ -64,8 +64,10 @@ class TicketController extends Controller
         // bulan tidak berubah hanya karena tiket diedit setelah selesai.
         if (($data['status'] ?? null) === 'selesai' && $ticket->status !== 'selesai' && ! $ticket->closed_at) {
             $data['closed_at'] = now();
-        } elseif (($data['status'] ?? null) !== 'selesai' && $ticket->status === 'selesai') {
+        } elseif (isset($data['status']) && $data['status'] !== 'selesai' && $ticket->status === 'selesai') {
+            // Tiket yang sudah selesai dibuka lagi -> dihitung "dibuka kembali".
             $data['closed_at'] = null;
+            $data['reopened_count'] = ((int) $ticket->reopened_count) + 1;
         }
 
         $ticket->update($data);
