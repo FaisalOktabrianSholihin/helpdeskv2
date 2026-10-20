@@ -9,12 +9,40 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'judul', 'deskripsi', 'kontak_nama', 'karyawan_id', 'divisi_id', 'telepon',
-    'status', 'prioritas', 'tipe', 'sumber', 'agen_id', 'created_by', 'closed_at', 'reopened_count',
+    'judul',
+    'deskripsi',
+    'kontak_nama',
+    'karyawan_id',
+    'divisi_id',
+    'telepon',
+    'status',
+    'prioritas',
+    'tipe',
+    'sumber',
+    'agen_id',
+    'created_by',
+    'closed_at',
+    'reopened_count',
+    'rating',
+    'rated_at',
 ])]
 class Ticket extends Model
 {
     use HasFactory;
+
+    protected function casts(): array
+    {
+        return [
+            'closed_at' => 'datetime',
+            'rated_at' => 'datetime',
+        ];
+    }
+
+    /** Pelapor hanya boleh melihat tiket miliknya sendiri; staf melihat semua. */
+    public function scopeVisibleTo($query, User $user)
+    {
+        return $user->isRequester() ? $query->where('created_by', $user->id) : $query;
+    }
 
     public function agen(): BelongsTo
     {
@@ -34,7 +62,7 @@ class Ticket extends Model
     /** Kode tampilan seperti pada front-end lama, mis. "#887". */
     public function getKodeAttribute(): string
     {
-        return '#'.$this->id;
+        return '#' . $this->id;
     }
 
     /** Nama karyawan (dari db_indukk) jika kontak tertaut ke data induk. */
@@ -74,7 +102,12 @@ class Ticket extends Model
             'created_at' => optional($this->created_at)->toIso8601String(),
             'closed_at' => optional($this->closed_at)->toIso8601String(),
             'reopened_count' => (int) ($this->reopened_count ?? 0),
-            'replies' => $this->replies->map(fn ($r) => [
+            'agen_id' => $this->agen_id,
+            'created_by' => $this->created_by,
+            'rating' => $this->rating ? (int) $this->rating : null,
+            // Sudah ada balasan dari pihak lain (agen)? -> pelapor boleh konfirmasi.
+            'staff_replied' => $this->replies->contains(fn($r) => $r->user_id && $r->user_id !== $this->created_by),
+            'replies' => $this->replies->map(fn($r) => [
                 'id' => $r->id,
                 'nama' => $r->user?->name ?? 'Sistem',
                 'body' => $r->body,

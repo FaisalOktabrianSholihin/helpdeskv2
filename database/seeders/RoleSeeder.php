@@ -25,7 +25,7 @@ class RoleSeeder extends Seeder
                 'dashboard.view', 'tiket.view', 'tiket.reply', 'tiket.close', 'tiket.print', 'analitik.view',
             ]],
             ['nama' => 'User', 'permissions' => [
-                'dashboard.view', 'tiket.view', 'tiket.create', 'tiket.reply',
+                'dashboard.view', 'tiket.view', 'tiket.create',
             ]],
         ];
 

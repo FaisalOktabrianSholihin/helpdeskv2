@@ -5,7 +5,8 @@
         <div>
             <h1 style="margin:0 0 4px; font-size:19px; font-weight:800;">Selamat datang kembali, Muhammad Andre 👋
             </h1>
-            <p style="margin:0; font-size:13px; color:var(--text-mute); font-weight:500;">Berikut ringkasan aktivitas
+            <p id="dash-subtitle" style="margin:0; font-size:13px; color:var(--text-mute); font-weight:500;">Berikut
+                ringkasan aktivitas
                 helpdesk hari ini.</p>
         </div>
         <!-- <div
@@ -15,19 +16,23 @@
             </div> -->
     </div>
     <div class="grid kpi-grid dash-kpi">
-        <div class="card kpi-card dash-kpi-card">
+        <div class="card kpi-card dash-kpi-card kpi-link" data-kpi-filter="total" role="button" tabindex="0"
+            title="Klik untuk melihat tiketnya">
             <div class="dash-kpi-label">Tiket dibuat</div>
             <div class="dash-kpi-value"><span class="count-up" data-target="0" id="kpi-total">0</span></div>
         </div>
-        <div class="card kpi-card dash-kpi-card">
+        <div class="card kpi-card dash-kpi-card kpi-link" data-kpi-filter="selesai" role="button" tabindex="0"
+            title="Klik untuk melihat tiketnya">
             <div class="dash-kpi-label">Tiket diselesaikan</div>
             <div class="dash-kpi-value"><span class="count-up" data-target="0" id="kpi-selesai">0</span></div>
         </div>
-        <div class="card kpi-card dash-kpi-card">
+        <div class="card kpi-card dash-kpi-card kpi-link" data-kpi-filter="open" role="button" tabindex="0"
+            title="Klik untuk melihat tiketnya">
             <div class="dash-kpi-label">Tiket tidak selesai</div>
             <div class="dash-kpi-value"><span class="count-up" data-target="0" id="kpi-menunggu">0</span></div>
         </div>
-        <div class="card kpi-card dash-kpi-card">
+        <div class="card kpi-card dash-kpi-card kpi-link" data-kpi-filter="reopened" role="button" tabindex="0"
+            title="Klik untuk melihat tiketnya">
             <div class="dash-kpi-label">Tiket dibuka kembali</div>
             <div class="dash-kpi-value"><span class="count-up" data-target="0" id="kpi-terbuka">0</span></div>
         </div>
@@ -80,22 +85,12 @@
             </div>
         </div>
         <div>
-            <div class="card" style="margin-bottom:18px;">
-                <div class="card-head">
-                    <h3>Tiket Menunggu</h3><button class="link-more" data-page="tiket-list">Lihat semua</button>
-                </div>
-                <div class="card-body" id="dash-waiting-list" style="padding-top:8px;"></div>
-            </div>
             <div class="card">
                 <div class="card-head">
-                    <h3>Pengumuman</h3><button class="link-more">Lihat semua</button>
+                    <h3 id="dash-waiting-title">Tiket Menunggu</h3><button class="link-more"
+                        data-page="tiket-list">Lihat semua</button>
                 </div>
-                <div class="announce" style="margin-top:14px;">
-                    <div class="announce-title"><svg class="icon" data-lucide="megaphone"
-                            style="width:15px;height:15px;color:var(--primary);"></svg>Maintenance Sistem</div>
-                    <p>Layanan helpdesk akan diperbarui pada 17 Mei 2025 pukul 23:00–02:00 WIB. Mohon simpan pekerjaan
-                        Anda sebelum jadwal tersebut.</p>
-                </div>
+                <div class="card-body" id="dash-waiting-list" style="padding-top:8px;"></div>
             </div>
         </div>
     </div>

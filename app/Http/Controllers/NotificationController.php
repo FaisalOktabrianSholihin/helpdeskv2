@@ -7,26 +7,28 @@ use Illuminate\Http\Request;
 
 class NotificationController extends Controller
 {
+    private function scope(Request $request)
+    {
+        $user = $request->user();
+
+        return Notification::forUser($user->id, ! $user->isRequester());
+    }
+
     public function index(Request $request)
     {
-        $items = Notification::forUser($request->user()->id)
+        $items = $this->scope($request)
             ->orderByDesc('created_at')
             ->limit(20)
             ->get()
-            ->map(fn ($n) => [
-                'id' => $n->id,
-                'icon' => $n->icon,
-                'title' => $n->title,
-                'text' => $n->text,
-                'time' => $n->created_at?->diffForHumans(),
-                'unread' => is_null($n->read_at),
-            ]);
+            ->map->toFrontendArray();
 
         return response()->json(['ok' => true, 'notifications' => $items]);
     }
 
     public function markRead(Request $request, Notification $notification)
     {
+        abort_unless($this->scope($request)->whereKey($notification->id)->exists(), 403);
+
         $notification->update(['read_at' => now()]);
 
         return response()->json(['ok' => true]);
@@ -34,7 +36,7 @@ class NotificationController extends Controller
 
     public function markAllRead(Request $request)
     {
-        Notification::forUser($request->user()->id)->whereNull('read_at')->update(['read_at' => now()]);
+        $this->scope($request)->whereNull('read_at')->update(['read_at' => now()]);
 
         return response()->json(['ok' => true]);
     }

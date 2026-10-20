@@ -29,6 +29,8 @@ Route::middleware('auth')->group(function () {
     Route::apiResource('api/tickets', TicketController::class)->parameters(['tickets' => 'ticket']);
     Route::post('/api/tickets/{ticket}/reply', [TicketController::class, 'reply']);
     Route::patch('/api/tickets/{ticket}/close', [TicketController::class, 'close']);
+    Route::patch('/api/tickets/{ticket}/take', [TicketController::class, 'take']);
+    Route::post('/api/tickets/{ticket}/confirm', [TicketController::class, 'confirm']);
 
     Route::apiResource('api/roles', RoleController::class)->parameters(['roles' => 'role']);
     Route::put('/api/roles/{role}/permissions', [RoleController::class, 'updatePermissions']);

@@ -28,27 +28,48 @@ function initLoginFlow() {
     if (window.lucide) lucide.createIcons();
   });
 
-  form.addEventListener('submit', async function (e) {
-    e.preventDefault();
+  /* Status tombol: idle | loading | error. Elemen selalu diambil ulang karena
+     lucide.createIcons() mengganti <svg>, jadi referensi lama bisa basi. */
+  let errTimer = null;
+  function setLoginState(state) {
     const btn = document.getElementById('login-btn');
     const txt = document.getElementById('login-btn-text');
-    const spin = document.getElementById('login-spinner');
+    clearTimeout(errTimer);
+    btn.classList.toggle('is-loading', state === 'loading');
+    btn.classList.toggle('is-error', state === 'error');
+    btn.disabled = state === 'loading';
+    txt.textContent = state === 'loading' ? 'Memproses...' : state === 'error' ? 'Gagal masuk' : 'Masuk';
+    if (state === 'error') {
+      // Goyang tombol + kolom input, lalu kembali normal.
+      btn.classList.remove('shake'); void btn.offsetWidth; btn.classList.add('shake');
+      form.querySelectorAll('.field-input').forEach(f => { f.classList.remove('shake'); void f.offsetWidth; f.classList.add('shake'); });
+      errTimer = setTimeout(() => setLoginState('idle'), 1600);
+    }
+  }
+  function showLoginError(message) {
+    const error = document.getElementById('login-error');
+    if (error) {
+      error.textContent = message;
+      error.classList.remove('show'); void error.offsetWidth; error.classList.add('show');
+    }
+    setLoginState('error');
+  }
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
     const error = document.getElementById('login-error');
     const email = document.getElementById('email')?.value.trim().toLowerCase();
     const password = document.getElementById('password')?.value;
-    if (error) error.textContent = '';
+    if (error) { error.textContent = ''; error.classList.remove('show'); }
     if (!email || !password) return;
 
-    btn.disabled = true; txt.textContent = 'Memproses...'; spin.style.display = 'block';
-    if (window.lucide) lucide.createIcons();
+    setLoginState('loading');
 
     try {
       await window.__helpdeskReady;
       const result = await window.__helpdeskLogin?.(email, password);
       if (!result?.ok) {
-        if (error) error.textContent = result?.message || 'Email atau password tidak sesuai.';
-        btn.disabled = false; txt.textContent = 'Masuk'; spin.style.display = 'none';
-        if (window.lucide) lucide.createIcons();
+        showLoginError(result?.message || 'Email atau password tidak sesuai.');
         return;
       }
 
@@ -69,9 +90,7 @@ function initLoginFlow() {
       }, 650);
     } catch (err) {
       console.error(err);
-      if (error) error.textContent = 'Aplikasi belum siap. Silakan coba lagi.';
-      btn.disabled = false; txt.textContent = 'Masuk'; spin.style.display = 'none';
-      if (window.lucide) lucide.createIcons();
+      showLoginError('Aplikasi belum siap. Silakan coba lagi.');
     }
   });
 }
@@ -127,6 +146,11 @@ async function bootHelpdesk() {
     let tickets = [];
     let divisiList = [];
     let karyawanList = [];
+    let ticketQuickFilter = null;      // filter dari klik 4 kotak dashboard
+    let karyawanPage = 1;
+    const KARYAWAN_PER_PAGE = 10;
+    let notifTimer = null;
+    let modalLocked = false;           // true = popup tidak bisa ditutup (rating wajib)
 
     /* ============ GRANULAR PERMISSIONS ============
        Format permission: resource.action
@@ -214,12 +238,29 @@ async function bootHelpdesk() {
     function esc(s) { const d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
     function ticketNumId(kode) { return String(kode).replace('#', ''); }
     function initials(name) { return (name || '?').split(' ').slice(0, 2).map(s => s[0]).join('').toUpperCase(); }
+    /* Waktu Indonesia (WIB) — selalu Asia/Jakarta, apa pun zona waktu perangkat. */
+    const TZ_ID = 'Asia/Jakarta';
     function nowStr() {
-      const d = new Date();
       const bulan = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-      const pad = n => String(n).padStart(2, '0');
-      return `${pad(d.getDate())} ${bulan[d.getMonth()]} ${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: TZ_ID, year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+        .formatToParts(new Date()).map(x => [x.type, x.value]));
+      return `${p.day.padStart(2, '0')} ${bulan[Number(p.month) - 1]} ${p.year} ${p.hour}:${p.minute} WIB`;
     }
+    const isRequester = () => !!currentUser?.isRequester;
+    const isMyTicket = t => currentUser && t.created_by === currentUser.id;
+    /* Pelapor boleh konfirmasi setelah agen membalas / menandai tiket ditangani. */
+    const canConfirmTicket = t => isRequester() && isMyTicket(t) && !t.rating && (t.status === 'menunggu' || t.status === 'selesai' || !!t.staff_replied);
+    const stars = n => '★'.repeat(n) + '☆'.repeat(5 - n);
+    function upsertTicket(t) {
+      const i = tickets.findIndex(x => x.id === t.id);
+      if (i === -1) tickets.unshift(t); else tickets[i] = t;
+    }
+    const quickFilters = {
+      total:    { label: 'Tiket dibuat tahun ini',        fn: t => new Date(t.created_at || '').getFullYear() === new Date().getFullYear() },
+      selesai:  { label: 'Tiket diselesaikan tahun ini',  fn: t => new Date(t.created_at || '').getFullYear() === new Date().getFullYear() && t.status === 'selesai' },
+      open:     { label: 'Tiket tidak selesai tahun ini', fn: t => new Date(t.created_at || '').getFullYear() === new Date().getFullYear() && t.status !== 'selesai' },
+      reopened: { label: 'Tiket dibuka kembali',          fn: t => Number(t.reopened_count) > 0 },
+    };
     function divisiName(id) { const d = divisiList.find(x => x.id === id); return d ? d.nama : '—'; }
 
     /* ============ RENDER: TICKETS ============ */
@@ -232,21 +273,24 @@ async function bootHelpdesk() {
     <td><span class="badge ${prioBadge[t.prioritas]}">${prioLabel[t.prioritas]}</span></td>
     <td style="color:var(--text-mute); font-weight:600;">${esc(t.dibuat)}</td>
     ${withActions ? `<td><div class="row-actions">
-      <button class="icon-action ia-edit" data-edit-ticket="${t.id}"><svg class="icon" style="width:14px;height:14px;" data-lucide="pencil"></svg></button>
-      <button class="icon-action ia-del" data-del-ticket="${t.id}"><svg class="icon" style="width:14px;height:14px;" data-lucide="trash-2"></svg></button>
+      ${can('tiket', 'edit') ? `<button class="icon-action ia-edit" data-edit-ticket="${t.id}"><svg class="icon" style="width:14px;height:14px;" data-lucide="pencil"></svg></button>` : ''}
+      ${can('tiket', 'delete') ? `<button class="icon-action ia-del" data-del-ticket="${t.id}"><svg class="icon" style="width:14px;height:14px;" data-lucide="trash-2"></svg></button>` : ''}
     </div></td>` : ''}
   </tr>`;
     }
     function renderDashboard() {
       document.getElementById('dash-recent-body').innerHTML = tickets.slice(0, 5).map(t => ticketRow(t, false)).join('') || `<tr class="empty-row"><td colspan="6">Belum ada tiket</td></tr>`;
-      const waiting = tickets.filter(t => t.status === 'menunggu').slice(0, 4);
+      const req = isRequester();
+      const waiting = (req ? tickets.filter(canConfirmTicket) : tickets.filter(t => t.status === 'menunggu')).slice(0, 4);
+      const wTitle = document.getElementById('dash-waiting-title');
+      if (wTitle) wTitle.textContent = req ? 'Menunggu Konfirmasi Anda' : 'Tiket Menunggu';
       document.getElementById('dash-waiting-list').innerHTML = waiting.length ? waiting.map((t, i) => `
     ${i > 0 ? '<div class="divider"></div>' : ''}
-    <div>
-      <div style="display:flex; align-items:center; gap:8px; font-weight:800; font-size:13px;">${esc(t.id)} <span class="badge b-menunggu" style="padding:2px 8px; font-size:10px;">Menunggu</span></div>
+    <div class="dash-wait-item" data-open="${esc(t.id)}">
+      <div style="display:flex; align-items:center; gap:8px; font-weight:800; font-size:13px;">${esc(t.id)} <span class="badge b-menunggu" style="padding:2px 8px; font-size:10px;">${req ? 'Perlu konfirmasi' : 'Menunggu'}</span></div>
       <div style="font-size:12.5px; color:var(--text-soft); margin-top:2px;">${esc(t.judul)}</div>
       <div class="cell-sub">${esc(t.kontak)}</div>
-    </div>`).join('') : `<div style="color:var(--text-mute); font-size:13px; padding:8px 0;">Tidak ada tiket menunggu.</div>`;
+    </div>`).join('') : `<div style="color:var(--text-mute); font-size:13px; padding:8px 0;">${req ? 'Tidak ada tiket yang perlu Anda konfirmasi.' : 'Tidak ada tiket menunggu.'}</div>`;
 
       const counts = { baru: 0, menunggu: 0, proses: 0, selesai: 0 };
       tickets.forEach(t => counts[t.status]++);
@@ -271,15 +315,23 @@ async function bootHelpdesk() {
       const fStatus = document.getElementById('filter-status').value;
       const fPrio = document.getElementById('filter-prioritas').value;
       const fTipe = document.getElementById('filter-tipe').value;
+      const qf = ticketQuickFilter && quickFilters[ticketQuickFilter];
       const filtered = tickets.filter(t => {
+        if (qf && !qf.fn(t)) return false;
         if (search && !(t.judul.toLowerCase().includes(search) || t.id.toLowerCase().includes(search) || t.kontak.toLowerCase().includes(search))) return false;
         if (fStatus && t.status !== fStatus) return false;
         if (fPrio && t.prioritas !== fPrio) return false;
         if (fTipe && t.tipe !== fTipe) return false;
         return true;
       });
-      document.getElementById('ticket-list-body').innerHTML = filtered.length ? filtered.map(t => ticketRow(t, true)).join('')
-        : `<tr class="empty-row"><td colspan="7">Tidak ada tiket yang cocok dengan pencarian/filter.</td></tr>`;
+      const req = isRequester();
+      document.getElementById('ticket-list-body').innerHTML = filtered.length ? filtered.map(t => ticketRow(t, !req)).join('')
+        : `<tr class="empty-row"><td colspan="${req ? 6 : 7}">Tidak ada tiket yang cocok dengan pencarian/filter.</td></tr>`;
+      // Pelapor tidak mengatur prioritas/tipe/aksi -> filter & kolom itu disembunyikan.
+      ['filter-prioritas', 'filter-tipe'].forEach(id => { const w = document.getElementById(id)?.closest('.select-wrap'); if (w) w.style.display = req ? 'none' : ''; });
+      const aksiTh = document.getElementById('ticket-aksi-th'); if (aksiTh) aksiTh.style.display = req ? 'none' : '';
+      const chip = document.getElementById('ticket-quick-chip');
+      if (chip) { chip.hidden = !qf; if (qf) document.getElementById('ticket-quick-label').textContent = qf.label; }
       document.getElementById('ticket-count-label').textContent = `Menampilkan ${filtered.length} dari ${tickets.length} tiket`;
       lucide.createIcons();
     }
@@ -313,6 +365,21 @@ async function bootHelpdesk() {
       document.getElementById('info-prioritas-badge').textContent = prioLabel[t.prioritas];
       document.getElementById('info-tipe').textContent = t.tipe;
       document.getElementById('info-telepon').textContent = t.telepon;
+      document.getElementById('info-rating').textContent = t.rating ? `${stars(t.rating)} (${t.rating}/5)` : '—';
+
+      /* Tombol & kartu mengikuti peran: pelapor tidak bisa edit/hapus/balas/tutup. */
+      const req = isRequester();
+      const vis = {
+        'edit-tiket-btn': can('tiket', 'edit') && !req,
+        'cetak-tiket-btn': can('tiket', 'print'),
+        'take-tiket-btn': !req && can('tiket', 'view') && !t.agen_id && t.status !== 'selesai',
+        'tutup-tiket-btn': can('tiket', 'close') && !req && t.status !== 'selesai',
+        'hapus-tiket-btn': can('tiket', 'delete') && !req,
+      };
+      Object.entries(vis).forEach(([id, ok]) => { const el = document.getElementById(id); if (el) el.style.display = ok ? '' : 'none'; });
+      const aksi = document.getElementById('aksi-card'); if (aksi) aksi.style.display = Object.values(vis).some(Boolean) ? '' : 'none';
+      const replyCard = document.getElementById('reply-card'); if (replyCard) replyCard.style.display = can('tiket', 'reply') && !req ? '' : 'none';
+      renderConfirmBanner(t);
 
       document.getElementById('paper-id').textContent = t.id;
       document.getElementById('paper-keadaan').textContent = statusLabel[t.status];
@@ -324,8 +391,7 @@ async function bootHelpdesk() {
       document.getElementById('paper-judul-label').textContent = t.judul;
       document.getElementById('paper-desc').textContent = t.deskripsi;
 
-      const printNow = new Date();
-      const printDate = `${printNow.getMonth() + 1}/${printNow.getDate()}/${String(printNow.getFullYear()).slice(-2)}, ${printNow.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+      const printDate = `${nowStr()}`;
       document.getElementById('paper-print-date').textContent = printDate;
       document.getElementById('paper-print-url').textContent = `m27.helpdesk.com/helpdesk/tickets/${String(t.id).replace('#','')}/print`;
 
@@ -349,6 +415,66 @@ async function bootHelpdesk() {
       }
     }
 
+    function renderConfirmBanner(t) {
+      const box = document.getElementById('detail-confirm');
+      if (!box) return;
+      if (!(isRequester() && isMyTicket(t))) { box.hidden = true; box.innerHTML = ''; return; }
+      box.hidden = false;
+      if (t.rating) {
+        box.innerHTML = `<div class="confirm-banner done"><svg class="icon" data-lucide="circle-check"></svg><div><strong>Tiket selesai. Terima kasih!</strong><p>Rating Anda: <span class="rating-inline">${stars(t.rating)}</span></p></div></div>`;
+      } else if (canConfirmTicket(t)) {
+        box.innerHTML = `<div class="confirm-banner"><svg class="icon" data-lucide="message-circle-question"></svg><div><strong>Apakah masalah Anda sudah teratasi?</strong><p>Agen sudah menanggapi tiket ini. Konfirmasi dan beri rating untuk menyelesaikan tiket.</p></div><button class="btn btn-blue" id="confirm-ticket-btn" type="button">Konfirmasi &amp; Beri Rating</button></div>`;
+      } else {
+        box.innerHTML = `<div class="confirm-banner wait"><svg class="icon" data-lucide="clock-3"></svg><div><strong>Tiket Anda sudah terkirim</strong><p>Menunggu agen mengambil dan menanggapi tiket. Anda akan mendapat notifikasi di lonceng.</p></div></div>`;
+      }
+      lucide.createIcons();
+    }
+
+    /* Popup rating: wajib memilih bintang, tidak bisa ditutup tanpa mengirim. */
+    function openRatingModal(id) {
+      const t = tickets.find(x => x.id === id);
+      if (!t) return;
+      let rating = 0;
+      const labels = ['Pilih bintang 1 – 5', 'Sangat buruk', 'Kurang baik', 'Cukup', 'Baik', 'Sangat baik'];
+      openModal('Konfirmasi & Beri Rating', `
+    <div class="rating-box">
+      <p class="rating-lead">Tiket <b>${esc(t.id)}</b> &mdash; ${esc(t.judul)}</p>
+      <p class="rating-ask">Bagaimana penanganan tiket Anda? <b>Rating wajib dipilih</b> untuk menyelesaikan tiket.</p>
+      <div class="rating-stars" id="rating-stars" role="radiogroup" aria-label="Rating 1 sampai 5">
+        ${[1, 2, 3, 4, 5].map(n => `<button type="button" class="rating-star" data-star="${n}" aria-label="${n} bintang">★</button>`).join('')}
+      </div>
+      <div class="rating-label" id="rating-label">${labels[0]}</div>
+    </div>`, `<button class="btn btn-blue" id="rating-submit" type="button" disabled>Konfirmasi Selesai</button>`);
+      modalLocked = true; modalBox.classList.add('modal-locked');
+
+      const starsEl = document.getElementById('rating-stars');
+      const submit = document.getElementById('rating-submit');
+      const paint = n => {
+        starsEl.querySelectorAll('.rating-star').forEach(b => b.classList.toggle('lit', Number(b.dataset.star) <= n));
+        document.getElementById('rating-label').textContent = labels[n];
+      };
+      starsEl.addEventListener('mouseover', e => { const b = e.target.closest('.rating-star'); if (b) paint(Number(b.dataset.star)); });
+      starsEl.addEventListener('mouseleave', () => paint(rating));
+      starsEl.addEventListener('click', e => {
+        const b = e.target.closest('.rating-star'); if (!b) return;
+        rating = Number(b.dataset.star); paint(rating); submit.disabled = false;
+      });
+      submit.addEventListener('click', async () => {
+        if (!rating) { showToast('Pilih rating terlebih dahulu', 'triangle-alert'); return; }
+        submit.disabled = true;
+        try {
+          const res = await apiFetch(`/api/tickets/${ticketNumId(id)}/confirm`, { method: 'POST', body: { rating } });
+          upsertTicket(res.ticket);
+          closeModal();
+          renderTicketDetail(id); renderTicketList(); renderDashboard();
+          showToast('Terima kasih! Tiket telah diselesaikan.', 'sparkles');
+        } catch (err) {
+          submit.disabled = false;
+          showToast(err.message || 'Gagal mengirim rating', 'triangle-alert');
+        }
+      });
+    }
+
     /* ============ RENDER: DIVISI ============ */
     function renderDivisi() {
       document.getElementById('divisi-body').innerHTML = divisiList.length ? divisiList.map(d => `<tr>
@@ -367,6 +493,13 @@ async function bootHelpdesk() {
       filterSel.innerHTML = `<option value="">Semua Divisi</option>` + opts;
       filterSel.value = curVal;
     }
+    function pageList(cur, n) {
+      if (n <= 7) return Array.from({ length: n }, (_, i) => i + 1);
+      const keep = [...new Set([1, 2, n - 1, n, cur - 1, cur, cur + 1])].filter(p => p >= 1 && p <= n).sort((x, y) => x - y);
+      const out = [];
+      keep.forEach((p, i) => { if (i && p - keep[i - 1] > 1) out.push('…'); out.push(p); });
+      return out;
+    }
     function renderKaryawan() {
       const search = (document.getElementById('karyawan-search').value || '').toLowerCase();
       const fDivisi = document.getElementById('karyawan-filter-divisi').value;
@@ -375,15 +508,60 @@ async function bootHelpdesk() {
         if (fDivisi && String(k.divisiId) !== String(fDivisi)) return false;
         return true;
       });
-      document.getElementById('karyawan-body').innerHTML = filtered.length ? filtered.map(k => `
+      const pages = Math.max(1, Math.ceil(filtered.length / KARYAWAN_PER_PAGE));
+      karyawanPage = Math.min(Math.max(1, karyawanPage), pages);
+      const start = (karyawanPage - 1) * KARYAWAN_PER_PAGE;
+      const rows = filtered.slice(start, start + KARYAWAN_PER_PAGE);
+      document.getElementById('karyawan-body').innerHTML = rows.length ? rows.map(k => `
     <tr>
-      <td><div class="avatar-row"><div class="avatar-sm">${initials(k.nama)}</div><span class="cell-strong">${esc(k.nama)}</span></div></td>
+      <td><div class="avatar-row karyawan-link" data-karyawan="${k.id}" title="Lihat riwayat tiket"><div class="avatar-sm">${initials(k.nama)}</div><span class="cell-strong">${esc(k.nama)}</span></div></td>
       <td style="color:var(--text-soft);">${esc(k.email || '-')}</td>
       <td><span class="badge b-baru">${esc(k.divisiNama || divisiName(k.divisiId))}</span></td>
       <td style="color:var(--text-soft);">${esc(k.jabatan || '-')}</td>
       <td style="color:var(--text-soft);">${esc(k.tlp || '-')}</td>
     </tr>`).join('') : `<tr class="empty-row"><td colspan="5">Tidak ada karyawan yang cocok.</td></tr>`;
+
+      const pag = document.getElementById('karyawan-pagination');
+      if (pag) {
+        const from = filtered.length ? start + 1 : 0, to = start + rows.length;
+        pag.innerHTML = `<span>Menampilkan ${from}–${to} dari ${filtered.length} karyawan</span>` + (pages > 1 ? `<div class="page-nums">
+      <button type="button" class="page-num" data-kpage="${karyawanPage - 1}" ${karyawanPage === 1 ? 'disabled' : ''} aria-label="Sebelumnya"><svg class="icon" data-lucide="chevron-left" style="width:13px;height:13px;"></svg></button>
+      ${pageList(karyawanPage, pages).map(p => p === '…' ? `<span class="page-gap">…</span>` : `<button type="button" class="page-num ${p === karyawanPage ? 'active' : ''}" data-kpage="${p}">${p}</button>`).join('')}
+      <button type="button" class="page-num" data-kpage="${karyawanPage + 1}" ${karyawanPage === pages ? 'disabled' : ''} aria-label="Berikutnya"><svg class="icon" data-lucide="chevron-right" style="width:13px;height:13px;"></svg></button>
+    </div>` : '');
+      }
       lucide.createIcons();
+    }
+    /* Tiket milik karyawan: lewat karyawan_id, atau nama kontak jika tidak tertaut. */
+    function ticketsOfKaryawan(k) {
+      const nm = (k.nama || '').trim().toLowerCase();
+      return tickets.filter(t => (t.karyawan_id != null ? Number(t.karyawan_id) === Number(k.id) : (t.kontak || '').trim().toLowerCase() === nm));
+    }
+    function openKaryawanDetail(id) {
+      const k = karyawanList.find(x => Number(x.id) === Number(id));
+      if (!k) return;
+      const list = ticketsOfKaryawan(k);
+      const done = list.filter(t => t.status === 'selesai').length;
+      const canSee = can('tiket', 'view');
+      const history = !canSee ? `<div class="kd-empty">Anda tidak memiliki akses untuk melihat riwayat tiket.</div>`
+        : list.length ? list.map(t => `<div class="kd-item" data-kd-ticket="${esc(t.id)}">
+            <div class="kd-top"><span class="mono kd-id">${esc(t.id)}</span><span class="badge ${statusBadge[t.status]}"><span class="dot"></span>${statusLabel[t.status]}</span></div>
+            <div class="kd-title">${esc(t.judul)}</div>
+            <div class="kd-meta">${esc(t.dibuat)} &middot; Agen: ${esc(t.agen)}${t.rating ? ` &middot; <span class="rating-inline">${stars(t.rating)}</span>` : ''}</div>
+          </div>`).join('')
+        : `<div class="kd-empty">${esc(k.nama)} belum pernah mengajukan tiket.</div>`;
+      openModal('Detail Karyawan', `<div class="profile-modal">
+        <div class="profile-avatar">${initials(k.nama)}</div><h3>${esc(k.nama)}</h3>
+        <p>${esc(k.jabatan || '-')} &middot; ${esc(k.divisiNama || divisiName(k.divisiId))}<br>${esc(k.email || '-')} &middot; ${esc(k.tlp || '-')}</p>
+        <div class="profile-stats">
+          <div><strong>${list.length}</strong><span>Total tiket diajukan</span></div>
+          <div><strong>${done}</strong><span>Tiket selesai</span></div>
+          <div><strong>${list.length - done}</strong><span>Belum selesai</span></div>
+        </div>
+        <div class="kd-heading">Riwayat tiket</div>
+        <div class="kd-history">${history}</div>
+      </div>`, `<button class="btn btn-blue" id="modal-cancel">Tutup</button>`);
+      document.getElementById('modal-cancel').addEventListener('click', closeModal);
     }
 
     /* ============ RENDER: ROLES ============ */
@@ -451,6 +629,7 @@ async function bootHelpdesk() {
       renderDashboard(); renderTicketList(); renderDivisi(); renderKaryawan(); renderRoles(); renderUsers();
       renderNotificationDot();
       refreshIdentity();
+      startNotifPolling();
       lucide.createIcons();
       return data;
     }
@@ -469,8 +648,20 @@ async function bootHelpdesk() {
     }
     function applyPermissions() {
       document.querySelectorAll('.nav-item[data-page]').forEach(n => { n.style.display = canAccess(n.dataset.page) ? '' : 'none'; });
+      // Menu "Kontak" (induk Divisi + Karyawan) ikut hilang kalau keduanya tidak boleh diakses.
+      const kontakOk = canAccess('divisi') || canAccess('karyawan');
+      const kToggle = document.getElementById('kontak-toggle'); if (kToggle) kToggle.style.display = kontakOk ? '' : 'none';
       const sub = document.getElementById('kontak-sub');
-      if (sub) sub.style.display = (canAccess('divisi') || canAccess('karyawan')) ? '' : 'none';
+      if (sub) sub.style.display = kontakOk ? '' : 'none';
+      // Judul grup (MENU / LAINNYA) disembunyikan jika semua menu di bawahnya tidak tersedia.
+      document.querySelectorAll('#sidebar .sb-label').forEach(label => {
+        let el = label.nextElementSibling, any = false;
+        while (el && !el.classList.contains('sb-label')) {
+          if (el.classList.contains('nav-item') && el.style.display !== 'none') any = true;
+          el = el.nextElementSibling;
+        }
+        label.style.display = any ? '' : 'none';
+      });
       document.querySelectorAll('[data-action-permission]').forEach(el => {
         const [resource, action] = el.dataset.actionPermission.split('.');
         el.style.display = can(resource, action) ? '' : 'none';
@@ -484,6 +675,10 @@ async function bootHelpdesk() {
       document.querySelectorAll('#sidebar .avatar, .topbar-user .avatar').forEach(el => el.textContent = avatarText);
       const welcome = document.querySelector('#page-dashboard h1');
       if (welcome) welcome.innerHTML = `Selamat datang kembali, ${esc(currentUser.nama)} 👋`;
+      const dsub = document.getElementById('dash-subtitle');
+      if (dsub) dsub.textContent = isRequester() ? 'Berikut ringkasan tiket yang Anda ajukan.' : 'Berikut ringkasan aktivitas helpdesk hari ini.';
+      const tsub = document.querySelector('#page-tiket-list .page-head p');
+      if (tsub) tsub.textContent = isRequester() ? 'Tiket yang Anda ajukan' : 'Kelola semua tiket helpdesk';
       applyPermissions();
     }
     async function loginUser(email, password) {
@@ -497,6 +692,8 @@ async function bootHelpdesk() {
     }
     function logout() {
       apiFetch('/logout', { method: 'POST' }).catch(() => {});
+      stopNotifPolling();
+      ticketQuickFilter = null; karyawanPage = 1;
       currentUser = null;
       tickets = []; divisiList = []; karyawanList = []; rolesList = []; usersList = [];
       notifications.length = 0;
@@ -509,27 +706,75 @@ async function bootHelpdesk() {
       document.getElementById('password').value = '';
       document.getElementById('password').type = 'password';
       const forgotBox = document.getElementById('forgot-box'); if (forgotBox) forgotBox.hidden = true;
-      document.getElementById('login-btn').disabled = false;
+      const lb = document.getElementById('login-btn');
+      lb.disabled = false; lb.classList.remove('is-loading', 'is-error', 'shake');
       document.getElementById('login-btn-text').textContent = 'Masuk';
-      document.getElementById('login-spinner').style.display = 'none';
-      document.getElementById('login-error').textContent = '';
+      const le = document.getElementById('login-error'); le.textContent = ''; le.classList.remove('show');
       showToast('Anda telah logout', 'log-out');
     }
+    function renderNotificationPanel() {
+      const panel = document.getElementById('notification-panel');
+      if (!panel) return;
+      panel.innerHTML = `<div class="notif-head"><strong>Notifikasi</strong><button id="mark-notif-read" class="link-btn">Tandai dibaca</button></div><div class="notif-list">${notifications.length ? notifications.map(n => `<div class="notif-item ${n.unread ? 'unread' : ''} ${n.ticket ? 'has-ticket' : ''}" data-notif="${n.id}"><div class="notif-icon"><svg class="icon" data-lucide="${esc(n.icon || 'bell')}"></svg></div><div><strong>${esc(n.title)}</strong><p>${esc(n.text)}</p><small>${esc(n.time)}</small></div></div>`).join('') : `<div class="notif-empty">Belum ada notifikasi.</div>`}</div>`;
+      lucide.createIcons();
+      document.getElementById('mark-notif-read')?.addEventListener('click', () => {
+        notifications.forEach(n => n.unread = false);
+        renderNotificationDot(); renderNotificationPanel();
+        showToast('Semua notifikasi ditandai sudah dibaca', 'check');
+        apiFetch('/api/notifications/read-all', { method: 'POST' }).catch(() => {});
+      });
+    }
     function showNotificationPanel() {
-      let panel = document.getElementById('notification-panel');
+      const panel = document.getElementById('notification-panel');
       if (!panel) return;
       panel.classList.toggle('show');
-      if (panel.classList.contains('show')) {
-        panel.innerHTML = `<div class="notif-head"><strong>Notifikasi</strong><button id="mark-notif-read" class="link-btn">Tandai dibaca</button></div><div class="notif-list">${notifications.map(n=>`<div class="notif-item ${n.unread?'unread':''}" data-notif="${n.id}"><div class="notif-icon"><svg class="icon" data-lucide="${n.icon}"></svg></div><div><strong>${esc(n.title)}</strong><p>${esc(n.text)}</p><small>${esc(n.time)}</small></div></div>`).join('')}</div>`;
-        lucide.createIcons();
-        document.getElementById('mark-notif-read')?.addEventListener('click', () => {
-          notifications.forEach(n => n.unread = false);
-          renderNotificationDot(); showNotificationPanel();
-          showToast('Semua notifikasi ditandai sudah dibaca', 'check');
-          apiFetch('/api/notifications/read-all', { method: 'POST' }).catch(() => {});
-        });
+      if (panel.classList.contains('show')) renderNotificationPanel();
+    }
+    /* Klik notifikasi -> tandai dibaca + buka tiket terkait. */
+    async function openNotification(id) {
+      const n = notifications.find(x => x.id === id);
+      if (!n) return;
+      if (n.unread) {
+        n.unread = false; renderNotificationDot(); renderNotificationPanel();
+        apiFetch(`/api/notifications/${id}/read`, { method: 'POST' }).catch(() => {});
+      }
+      if (!n.ticket) return;
+      document.getElementById('notification-panel')?.classList.remove('show');
+      if (!can('tiket', 'view')) { showToast('Anda tidak memiliki akses ke tiket', 'shield-alert'); return; }
+      if (!tickets.some(t => t.id === n.ticket)) await refreshTickets();
+      if (!tickets.some(t => t.id === n.ticket)) { showToast(`Tiket ${n.ticket} tidak ditemukan (mungkin sudah dihapus)`, 'triangle-alert'); return; }
+      showPage('tiket-detail'); renderTicketDetail(n.ticket);
+    }
+    async function refreshTickets() {
+      try {
+        const res = await apiFetch('/api/tickets');
+        tickets = res.tickets || [];
+        renderTicketList(); renderDashboard();
+        if (document.getElementById('page-tiket-detail')?.classList.contains('active') && tickets.some(t => t.id === currentTicketId)) renderTicketDetail(currentTicketId);
+      } catch (err) { /* diam: percobaan berikutnya lewat polling */ }
+    }
+    /* Cek notifikasi baru tiap 15 detik, supaya agen langsung tahu ada tiket
+       masuk / ada yang mengambil tiket tanpa harus reload. */
+    async function pollNotifications() {
+      if (!currentUser || document.hidden) return;
+      try {
+        const res = await apiFetch('/api/notifications');
+        const known = new Set(notifications.map(n => n.id));
+        const fresh = (res.notifications || []).filter(n => n.unread && !known.has(n.id));
+        notifications.length = 0;
+        (res.notifications || []).forEach(n => notifications.push(n));
+        renderNotificationDot();
+        if (document.getElementById('notification-panel')?.classList.contains('show')) renderNotificationPanel();
+        if (fresh.length) {
+          showToast(fresh[0].title + (fresh.length > 1 ? ` (+${fresh.length - 1} lainnya)` : ''), 'bell');
+          refreshTickets();
+        }
+      } catch (err) {
+        if (err.status === 401) logout(); // sesi habis
       }
     }
+    function startNotifPolling() { stopNotifPolling(); notifTimer = setInterval(pollNotifications, 15000); }
+    function stopNotifPolling() { if (notifTimer) { clearInterval(notifTimer); notifTimer = null; } }
     function renderNotificationDot() { const dot=document.querySelector('.notif-dot'); if(dot) dot.style.display=notifications.some(n=>n.unread)?'block':'none'; }
     window.__helpdeskLogin = loginUser;
     window.__helpdeskLogout = logout;
@@ -554,9 +799,48 @@ async function bootHelpdesk() {
       closeMobileSidebar();
     }
     window.__helpdeskShowPage = showPage;
+    // Kotak ringkasan juga bisa dibuka dengan keyboard (Enter / Spasi).
+    document.addEventListener('keydown', (e) => {
+      const k = e.target.closest?.('[data-kpi-filter]');
+      if (k && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openTicketsWithFilter(k.dataset.kpiFilter); }
+    });
+    function openTicketsWithFilter(key) {
+      if (!requirePermission('tiket', 'view', 'Anda tidak memiliki akses ke menu tiket.')) return;
+      ticketQuickFilter = key;
+      ['ticket-search', 'filter-status', 'filter-prioritas', 'filter-tipe'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+      renderTicketList();
+      showPage('tiket-list');
+    }
     document.body.addEventListener('click', (e) => {
+      // 4 kotak ringkasan di dashboard -> daftar tiket terfilter
+      const kpi = e.target.closest('[data-kpi-filter]');
+      if (kpi) { openTicketsWithFilter(kpi.dataset.kpiFilter); return; }
+      if (e.target.closest('#ticket-quick-clear')) { ticketQuickFilter = null; renderTicketList(); return; }
+
+      const notifEl = e.target.closest('[data-notif]');
+      if (notifEl) { openNotification(Number(notifEl.dataset.notif)); return; }
+
+      if (e.target.closest('#confirm-ticket-btn')) { openRatingModal(currentTicketId); return; }
+
+      const kpage = e.target.closest('[data-kpage]');
+      if (kpage) { if (!kpage.disabled) { karyawanPage = Number(kpage.dataset.kpage); renderKaryawan(); } return; }
+      const kar = e.target.closest('[data-karyawan]');
+      if (kar) { openKaryawanDetail(kar.dataset.karyawan); return; }
+      const kdTicket = e.target.closest('[data-kd-ticket]');
+      if (kdTicket) {
+        const tid = kdTicket.dataset.kdTicket; closeModal();
+        if (tickets.some(t => t.id === tid)) { showPage('tiket-detail'); renderTicketDetail(tid); }
+        return;
+      }
+
       const navEl = e.target.closest('[data-page]');
-      if (navEl) { e.preventDefault(); showPage(navEl.dataset.page); return; }
+      if (navEl) {
+        e.preventDefault();
+        // Buka "Tiket" dari sidebar / "Lihat semua" = tanpa filter dari kotak dashboard.
+        if (navEl.dataset.page === 'tiket-list' && navEl.matches('.nav-item, .link-more') && ticketQuickFilter) { ticketQuickFilter = null; renderTicketList(); }
+        showPage(navEl.dataset.page);
+        return;
+      }
 
       const settingBtn = e.target.closest('[data-setting]');
       if (settingBtn) { openSettingForm(settingBtn.dataset.setting); return; }
@@ -632,8 +916,8 @@ async function bootHelpdesk() {
       document.getElementById(id).addEventListener('input', renderTicketList);
       document.getElementById(id).addEventListener('change', renderTicketList);
     });
-    document.getElementById('karyawan-search').addEventListener('input', renderKaryawan);
-    document.getElementById('karyawan-filter-divisi').addEventListener('change', renderKaryawan);
+    document.getElementById('karyawan-search').addEventListener('input', () => { karyawanPage = 1; renderKaryawan(); });
+    document.getElementById('karyawan-filter-divisi').addEventListener('change', () => { karyawanPage = 1; renderKaryawan(); });
 
     /* Buttons -> pages / toasts */
     document.getElementById('cetak-tiket-btn').addEventListener('click', () => { if(requirePermission('tiket','print','Anda tidak memiliki hak untuk mencetak tiket.')) showPage('cetak-tiket'); });
@@ -646,7 +930,7 @@ async function bootHelpdesk() {
         const res = await apiFetch(`/api/tickets/${ticketNumId(currentTicketId)}/reply`, { method: 'POST', body: { body: box.value.trim() } });
         const idx = tickets.findIndex(x => x.id === currentTicketId);
         if (idx !== -1) tickets[idx] = res.ticket;
-        renderTicketDetail(currentTicketId);
+        renderTicketDetail(currentTicketId); renderTicketList(); renderDashboard();
         box.value = '';
         showToast('Balasan berhasil dikirim', 'send');
       } catch (err) {
@@ -659,9 +943,20 @@ async function bootHelpdesk() {
         const idx = tickets.findIndex(x => x.id === currentTicketId);
         if (idx !== -1) tickets[idx] = res.ticket;
         renderTicketDetail(currentTicketId); renderTicketList(); renderDashboard();
-        showToast(`Tiket ${currentTicketId} telah ditutup`, 'check');
+        showToast(res.ticket.status === 'menunggu' ? `Tiket ${currentTicketId} ditandai selesai ditangani — menunggu konfirmasi pelapor` : `Tiket ${currentTicketId} telah ditutup`, 'check');
       } catch (err) {
         showToast(err.message || 'Gagal menutup tiket', 'triangle-alert');
+      }
+    });
+    document.getElementById('take-tiket-btn')?.addEventListener('click', async () => {
+      try {
+        const res = await apiFetch(`/api/tickets/${ticketNumId(currentTicketId)}/take`, { method: 'PATCH' });
+        upsertTicket(res.ticket);
+        renderTicketDetail(currentTicketId); renderTicketList(); renderDashboard();
+        showToast('Tiket Anda ambil. Agen lain & pelapor sudah diberi tahu.', 'user-check');
+      } catch (err) {
+        showToast(err.message || 'Gagal mengambil tiket', 'triangle-alert');
+        if (err.status === 409) refreshTickets().then(() => renderTicketDetail(currentTicketId));
       }
     });
     document.getElementById('hapus-tiket-btn').addEventListener('click', () => { if(requirePermission('tiket','delete','Anda tidak memiliki hak untuk menghapus tiket.')) confirmDeleteTicket(currentTicketId, true); });
@@ -689,10 +984,11 @@ async function bootHelpdesk() {
       document.getElementById('modal-body').innerHTML = bodyHTML;
       document.getElementById('modal-foot').innerHTML = footHTML;
       modalBox.classList.toggle('modal-confirm', !!small);
+      modalLocked = false; modalBox.classList.remove('modal-locked');
       modalOverlay.classList.add('show');
       lucide.createIcons();
     }
-    function closeModal() { modalOverlay.classList.remove('show'); }
+    function closeModal() { modalLocked = false; modalBox.classList.remove('modal-locked'); modalOverlay.classList.remove('show'); }
 
     /* Kolom pencarian (autocomplete) sederhana: ketik -> muncul daftar -> klik untuk memilih. */
     function attachCombo(input, getItems, onPick, onClear) {
@@ -719,12 +1015,45 @@ async function bootHelpdesk() {
       });
     }
     const isSuperadmin = () => /super\s*admin/i.test(currentUser?.roleNama || '');
-    document.getElementById('modal-close-btn').addEventListener('click', closeModal);
-    modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay) closeModal(); });
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+    document.getElementById('modal-close-btn').addEventListener('click', () => { if (!modalLocked) closeModal(); });
+    modalOverlay.addEventListener('click', (e) => { if (e.target === modalOverlay && !modalLocked) closeModal(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modalLocked) closeModal(); });
 
     /* ============ TICKET FORM ============ */
+    /* Form pelapor: hanya judul & deskripsi. Nama kontak + telepon terisi otomatis;
+       prioritas/status/tipe/agen ditentukan agen, bukan pelapor. */
+    function openRequesterTicketForm() {
+      const body = `
+    <div class="form-field"><label>Judul Tiket</label><input class="form-input" id="f-judul" placeholder="Contoh: Printer tidak bisa print"></div>
+    <div class="form-field"><label>Deskripsi</label><textarea class="form-textarea" id="f-desc" placeholder="Jelaskan detail kendala..."></textarea></div>
+    <div class="form-row-2">
+      <div class="form-field"><label>Nama Kontak</label><input class="form-input is-auto" value="${esc(currentUser.nama)}" readonly tabindex="-1"></div>
+      <div class="form-field"><label>No. Telepon</label><input class="form-input is-auto" value="${esc(currentUser.tlp || '-')}" readonly tabindex="-1"></div>
+    </div>
+    <small style="color:var(--text-mute);">Prioritas, tipe, dan agen penanggung jawab akan ditentukan oleh tim helpdesk. Setelah terkirim, tiket tidak dapat dihapus.</small>`;
+      openModal('Buat Tiket Baru', body, `
+    <button class="btn btn-ghost" id="modal-cancel">Batal</button>
+    <button class="btn btn-blue" id="modal-save"><svg class="icon" style="width:14px;height:14px;" data-lucide="send"></svg>Kirim Tiket</button>`);
+      document.getElementById('modal-cancel').addEventListener('click', closeModal);
+      document.getElementById('modal-save').addEventListener('click', async () => {
+        const judul = document.getElementById('f-judul').value.trim();
+        if (!judul) { showToast('Judul tiket wajib diisi', 'triangle-alert'); return; }
+        const btn = document.getElementById('modal-save'); btn.disabled = true;
+        try {
+          const res = await apiFetch('/api/tickets', { method: 'POST', body: { judul, deskripsi: document.getElementById('f-desc').value.trim() || '-' } });
+          tickets.unshift(res.ticket);
+          renderTicketList(); renderDashboard();
+          closeModal();
+          showToast(`Tiket ${res.ticket.id} terkirim. Agen sudah diberi tahu.`, 'sparkles');
+          setTimeout(() => document.querySelector(`[data-open="${res.ticket.id}"]`)?.classList.add('row-new'), 60);
+        } catch (err) {
+          btn.disabled = false;
+          showToast(err.data?.errors ? Object.values(err.data.errors)[0][0] : (err.message || 'Gagal mengirim tiket'), 'triangle-alert');
+        }
+      });
+    }
     function openTicketForm(id) {
+      if (!id && isRequester()) { openRequesterTicketForm(); return; }
       const editing = !!id;
       const t = editing ? tickets.find(x => x.id === id) : null;
       const body = `

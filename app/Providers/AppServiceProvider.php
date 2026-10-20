@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use Illuminate\Support\Carbon;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -19,6 +20,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Waktu Indonesia: zona waktu diatur di config/app.php (Asia/Jakarta),
+        // di sini bahasa untuk diffForHumans() -> "5 menit yang lalu".
+        Carbon::setLocale('id');
     }
 }

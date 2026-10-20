@@ -7,8 +7,8 @@
             <h1>Tiket</h1>
             <p>Kelola semua tiket helpdesk</p>
         </div>
-        <button class="btn btn-blue" id="new-ticket-btn"><svg class="icon" data-lucide="plus"
-                style="width:15px;height:15px;"></svg>Buat Tiket</button>
+        <button class="btn btn-blue" id="new-ticket-btn" data-action-permission="tiket.create"><svg class="icon"
+                data-lucide="plus" style="width:15px;height:15px;"></svg>Buat Tiket</button>
     </div>
     <div class="filter-bar">
         <div class="search-chip"><svg class="icon" data-lucide="search"
@@ -41,6 +41,11 @@
             </select><svg data-lucide="chevron-down"></svg>
         </div>
     </div>
+    <div class="quick-chip" id="ticket-quick-chip" hidden>
+        <svg class="icon" data-lucide="filter" style="width:13px;height:13px;"></svg>
+        <span id="ticket-quick-label"></span>
+        <button type="button" id="ticket-quick-clear" aria-label="Hapus filter">&times;</button>
+    </div>
     <div class="card">
         <div class="table-wrap">
             <table>
@@ -52,7 +57,7 @@
                         <th>Status</th>
                         <th>Prioritas</th>
                         <th>Dibuat</th>
-                        <th style="width:90px;">Aksi</th>
+                        <th style="width:90px;" id="ticket-aksi-th">Aksi</th>
                     </tr>
                 </thead>
                 <tbody id="ticket-list-body"></tbody>

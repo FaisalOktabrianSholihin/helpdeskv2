@@ -58,6 +58,7 @@ class AuthController extends Controller
     public function userPayload(User $user): array
     {
         $user->loadMissing('role');
+        $karyawan = $user->isRequester() ? $user->karyawanRecord() : null;
 
         return [
             'id' => $user->id,
@@ -69,6 +70,10 @@ class AuthController extends Controller
             'divisiId' => $user->divisi_id,
             'divisiNama' => $user->divisiNama(),
             'active' => (bool) $user->active,
+            // Pelapor: dasbor/tiket hanya miliknya, form tiket disederhanakan.
+            'isRequester' => $user->isRequester(),
+            'tlp' => $karyawan?->no_hp,
+            'karyawanId' => $karyawan?->id,
         ];
     }
 }

@@ -1,0 +1,118 @@
+/* ==========================================================================
+   Revisi 20 Okt 2026 — file ini dimuat TERAKHIR (lihat index.blade.php),
+   jadi aturan di sini menimpa base.css tanpa perlu mengubah file lama.
+   ========================================================================== */
+
+/* ---- 7. Sidebar: kursor tetap panah (bukan I-beam di atas teks) ---- */
+#sidebar,
+#sidebar .nav-item,
+#sidebar .nav-item *,
+#sidebar .sb-label,
+#sidebar .sb-brand,
+#sidebar .sb-brand .brand-name,
+#sidebar .sb-brand .brand-sub,
+#sidebar .sb-text,
+#sidebar .sb-foot,
+#sidebar .sb-foot * { cursor: default; }
+#sidebar { -webkit-user-select: none; user-select: none; }
+
+/* ---- 1. Tombol Masuk: loading berputar, gagal = goyang merah ---- */
+.spin { animation: spin 0.8s linear infinite; }
+#login-btn .spin { display: none; }
+#login-btn.is-loading .spin { display: inline-block; }
+#login-btn.is-error {
+  background: linear-gradient(135deg, #e5484d, #c92a3a) !important;
+  box-shadow: 0 12px 25px -12px rgba(201, 42, 58, .7) !important;
+  opacity: 1;
+}
+#login-btn.is-error::after { display: none; }       /* matikan kilau saat error */
+.shake { animation: loginShake .45s cubic-bezier(.36, .07, .19, .97) both; }
+@keyframes loginShake {
+  10%, 90% { transform: translateX(-2px); }
+  20%, 80% { transform: translateX(4px); }
+  30%, 50%, 70% { transform: translateX(-7px); }
+  40%, 60% { transform: translateX(7px); }
+}
+.field-input.shake { border-color: #e5484d; box-shadow: 0 0 0 4px #fde8ea; }
+.login-error.show { animation: errIn .3s ease both; }
+@keyframes errIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+/* ---- 4. Kotak ringkasan dashboard bisa diklik ---- */
+.kpi-link { cursor: pointer !important; }
+.kpi-link:hover { border-color: var(--primary); }
+.kpi-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.dash-wait-item { cursor: pointer; }
+.dash-wait-item:hover .cell-sub { color: var(--primary); }
+
+/* chip filter aktif di halaman tiket */
+.quick-chip {
+  display: inline-flex; align-items: center; gap: 8px; margin: 0 0 14px;
+  padding: 6px 8px 6px 12px; border-radius: 999px;
+  background: var(--primary-50); border: 1px solid var(--primary-100);
+  color: var(--primary-600); font-size: 12px; font-weight: 700;
+}
+.quick-chip[hidden] { display: none; }
+.quick-chip button {
+  width: 20px; height: 20px; border: 0; border-radius: 50%; cursor: pointer;
+  background: rgba(8, 127, 91, .15); color: var(--primary-600); font-size: 14px; line-height: 1;
+}
+.quick-chip button:hover { background: rgba(8, 127, 91, .3); }
+
+/* ---- 5. Pelapor: banner konfirmasi + popup rating ---- */
+#detail-confirm { margin-bottom: 18px; }
+#detail-confirm[hidden] { display: none; }
+.confirm-banner {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 16px 18px; border-radius: 14px;
+  background: linear-gradient(120deg, #fff7e0, #fffdf5); border: 1px solid #f1dc9b; color: #6b4a00;
+}
+.confirm-banner > .icon { width: 26px; height: 26px; flex-shrink: 0; }
+.confirm-banner > div { flex: 1; min-width: 200px; }
+.confirm-banner strong { display: block; font-size: 13.5px; }
+.confirm-banner p { margin: 3px 0 0; font-size: 12px; opacity: .85; }
+.confirm-banner.wait { background: var(--surface-2); border-color: var(--border); color: var(--text-soft); }
+.confirm-banner.done { background: var(--primary-50); border-color: var(--primary-100); color: var(--primary-600); }
+.rating-inline { color: #e8a317; letter-spacing: 1px; }
+
+.rating-box { text-align: center; padding: 4px 0 2px; }
+.rating-lead { margin: 0 0 6px; font-size: 13px; color: var(--text-soft); }
+.rating-ask { margin: 0 0 16px; font-size: 13px; color: var(--text-mute); }
+.rating-stars { display: flex; justify-content: center; gap: 6px; }
+.rating-star {
+  border: 0; background: none; cursor: pointer; padding: 2px 4px;
+  font-size: 40px; line-height: 1; color: #d3ddd8; transition: transform .12s, color .12s;
+}
+.rating-star:hover { transform: scale(1.15); }
+.rating-star.lit { color: #f5b301; }
+.rating-label { margin-top: 10px; min-height: 18px; font-size: 13px; font-weight: 700; color: var(--text-soft); }
+/* popup wajib: tombol X disembunyikan */
+.modal.modal-locked .modal-close { display: none; }
+#rating-submit:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+/* form pelapor: kolom otomatis terisi */
+.form-input.is-auto { background: var(--surface-2); color: var(--text-soft); cursor: default; }
+
+/* ---- Notifikasi bisa diklik ---- */
+.notif-item.has-ticket { cursor: pointer; }
+.notif-item.has-ticket:hover { background: var(--primary-50); }
+.notif-empty { padding: 28px 16px; text-align: center; font-size: 12px; color: var(--text-mute); }
+
+/* ---- 10. Karyawan: pagination + detail ---- */
+.karyawan-link { cursor: pointer; width: fit-content; }
+.karyawan-link .cell-strong { transition: color .15s; }
+.karyawan-link:hover .cell-strong { color: var(--primary); text-decoration: underline; }
+.page-num { cursor: pointer; font-family: inherit; font-size: 12.5px; }
+.page-num:disabled { opacity: .4; cursor: not-allowed; }
+.page-gap { width: 20px; text-align: center; color: var(--text-mute); font-weight: 700; }
+
+.kd-heading { text-align: left; font-size: 12px; font-weight: 800; color: var(--text-soft); margin: 4px 0 8px; }
+.kd-history { max-height: 280px; overflow-y: auto; text-align: left; border: 1px solid var(--border); border-radius: 12px; }
+.kd-item { padding: 11px 14px; border-bottom: 1px solid var(--border-soft); cursor: pointer; transition: background .15s; }
+.kd-item:last-child { border-bottom: 0; }
+.kd-item:hover { background: var(--primary-50); }
+.kd-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.kd-id { font-weight: 800; font-size: 12px; color: var(--primary); }
+.kd-title { font-size: 13px; font-weight: 700; margin: 4px 0 2px; }
+.kd-meta { font-size: 11px; color: var(--text-mute); }
+.kd-empty { padding: 22px 14px; text-align: center; font-size: 12px; color: var(--text-mute); }
+.profile-modal > p { line-height: 1.6; }
